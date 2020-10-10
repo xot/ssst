@@ -122,11 +122,10 @@ SSST generates the following output in the destination tree
   
 # Dependencies
 
-This is a program written in Python that depends on
+This is a program written in Python (version 3), and depends on
 
 - pandoc
 - pdf2svg
-- python3
 - PyYaml
 
 

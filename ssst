@@ -661,9 +661,15 @@ args = parser.parse_args()
 
 # Apply arguments
 src_root = remove_trailing_slash(args.source)
+if not os.path.exists(src_root):
+    error('Source tree %s does not exist.' % src_root)
 dest_root = remove_trailing_slash(args.destination)
+if not os.path.exists(dest_root):
+    error('Path to destination tree %s does not exist.' % dest_root)
 hosting_root = remove_trailing_slash(args.root)
 templates = remove_trailing_slash(args.templates)
+if not os.path.exists(templates):
+    error('Templates directory %s does not exist.' % templates)
 loglevel = int(args.verbosity)
 force = args.force
 strict = args.strict
