@@ -6,8 +6,44 @@
 #
 # Author: Jaap-henk Hoepman (jhh@xs4all.nl)
 
-import argparse, sys, os, re, tempfile, subprocess, shutil, datetime, yaml
+import argparse, sys, os, re, tempfile, subprocess, shutil, datetime, yaml, filecmp
 from pathlib import Path
+from io import StringIO
+
+# ---
+# DelayedTextfile
+#
+# Create a textfile, whose contents is only actually written to external
+# storage when closing the file and the new contents are different from
+# the old contents (or when the file does not exist yet)
+# ---
+
+class DelayedTextfile(StringIO):
+
+    # create a Delayedtextfile for external file fname,
+    # to be written on file close
+    def __init__(self,fname):
+        super().__init__()
+        self.path = Path(fname)
+
+    # return true if the file was actually written, false otherwise    
+    def close(self):
+        newcontents = self.getvalue()
+        if self.path.exists():
+            with open(self.path,"r") as f:
+                oldcontents = f.read()
+                if oldcontents == newcontents:
+                    return False
+        with open(self.path,"w") as f:
+            f.write(newcontents)
+            return True
+
+    # Allow with DelayedTextfile(name) as f: constructions
+    # where file is automatically closed when with statement ends
+    def __exit__(self, type, value, tb):
+        self.close()
+
+
 
 # ---
 # CONSTANTS / PARAMETERS
@@ -23,7 +59,7 @@ dest_root = "./public"
 hosting_root = dest_root
 
 # Path to directory with templates
-templates = "./templates/"
+templates = "./templates"
 
 # Verbosity
 loglevel = -1
@@ -49,23 +85,34 @@ post_metadata = {}
 # list of all posts, sorted by date (with the help of post_metadata)
 all_posts = []
 
+# logfile
+logfile = None 
 
 # ---
 # ERRORS / LOGGING
 # ---
 
 def error (msg):
-    sys.stderr.write("\nSSST: Error: %s\n" % str(msg))
+    m = "\nSSST: Error: %s\n" % str(msg)
+    sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
     sys.exit (1)
 
 def warning (msg):
-    sys.stderr.write("\nSSST: Warning: %s\n" % str(msg))
+    m = "\nSSST: Warning: %s\n" % str(msg)
+    sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
     if strict:
         sys.exit (1)
     
 def log (level,msg):
+    m = str(msg)+"\n"
     if (level <= loglevel):
-        sys.stdout.write(str(msg)+"\n")
+        sys.stdout.write(m)
+    if logfile != None:
+        logfile.write(m)
 
 # ---
 # YAML
@@ -85,21 +132,28 @@ def get_yaml_dict(src):
 # FUNCTIONS
 # ---
 
+# Remove the trailing slash from folder names
+def remove_trailing_slash (s):
+    if len(s) == 0:
+        return s
+    if s[-1] == '/':
+        return s[:-1]
+    return s
+
 # Return the full path of the folder that contains the item
 def item_folder (item):
     return item.parents[0]
 
 # Determine the html destination path for a markdown source file 
 def item_destination (src_root,dest_root,src):
-    # strip src prefix and md suffic, prepend dest and append html
-    return Path(dest_root + str(src)[len(src_root):-2] + 'html')
+    src = src.with_suffix('.html')
+    # strip src prefix, prepend dest
+    return Path(dest_root + str(src)[len(src_root):])
 
-# Determine the link pointing to the post on the hosting site
-def item_url (src_root,post):
-    if hosting_root[-1] == '/':
-        return hosting_root + str(post)[len(src_root):-2] + 'html'
-    else:
-        return hosting_root + '/' + str(post)[len(src_root):-2] + 'html'
+# Determine the link pointing to the item on the hosting site
+def item_url (src_root,item):
+    item = item.with_suffix('.html')
+    return hosting_root + '/' + str(item)[len(src_root):]
 
 # Determine list of comments file names (empty if none) for the post
 def item_comments (post):
@@ -107,13 +161,21 @@ def item_comments (post):
 
 # Return the full path for a template, throw error if it does not exist
 def get_template(name):
-    if templates[-1] == '/':
-        template = templates + name
-    else:
-        template = templates + '/' + name        
+    template = templates + '/' + name        
     if not os.path.exists(template):
         error("Template %s not found" % template)
     return template
+
+# replace origpath with newpath if the contents are different, otherwise
+# keep origpath untouched and remove newpath
+def replace_when_changed (origpath, newpath):
+    if (not os.path.exists(origpath)) or \
+       (not filecmp.cmp(origpath,newpath,shallow=False)): 
+        log(4,"File changed "+ str(origpath))
+        shutil.copy2(newpath,origpath)
+    else:
+        log(4,"File not changed "+ str(origpath))
+    os.remove(newpath)
 
 def parse_date (s):
     if type(s) is str:
@@ -338,7 +400,7 @@ def copy_media(src_path,dest_path):
     for t in media_types:
         for f in item_folder(src_path).glob("*." + t):
             log(4,'Copying media file ' + str(f) + ' to ' + str(dp_folder))
-            shutil.copy2(f,dp_folder)
+            shutil.copy2(f,dp_folder) # keep metadata
 
 # --- CATEGORIES AND TAGS
 
@@ -350,7 +412,7 @@ def process_post_metadata(post):
     global files_with_tag
     global files_with_cat
     global post_metadata
-    log(2,'- Processing categories and tags')
+    log(2,'- Processing categories and tags for ' + str(post))
     yaml = get_yaml_dict(post)
     if 'categories' in yaml:
         cats = yaml['categories']
@@ -408,7 +470,8 @@ def dump(src_root,out_name,title,label,filelist):
     # (using the fact that the path encodes the file date)
     filelist.sort()
     os.makedirs(item_folder(Path(out_name)),exist_ok=True)
-    with open(out_name,"w") as outf:
+#    with open(out_name,"w") as outf:
+    with DelayedTextfile(out_name) as outf:
         outf.write("---\n")
         outf.write("title: '" + title + "'\n")        
         outf.write("subtitle: '" + label.capitalize() + "'\n")
@@ -423,10 +486,10 @@ def dump(src_root,out_name,title,label,filelist):
 def dump_cats_and_tags(src_root):
     log(0,'Dumping category and tag files.')
     for cat in files_with_cat:
-        dump(src_root,src_root + "/category/" + cat + "/index.md",
+        dump(src_root,src_root + "/category/" + cat + "/index.sst",
              "Category",cat,files_with_cat[cat])
     for tag in files_with_tag:
-        dump(src_root,src_root + "/tag/" + tag + "/index.md",
+        dump(src_root,src_root + "/tag/" + tag + "/index.sst",
              "Tag",tag,files_with_tag[tag])
 
 # --- ARCHIVES
@@ -439,9 +502,11 @@ def dump_cats_and_tags(src_root):
 def dump_archives(src_root):
     global archive_selector
     log(0,'Dumping archives.')
-    archive_paths_created = []    
+    # dictionary with DelayedTextFile descriptors, indexed by archicepath
+    archive_paths = {}  
     # create the root archive file
-    with open(src_root + '/archives.md','w') as archivef:
+#    with open(src_root + '/archives.sst','w') as archivef:
+    with DelayedTextfile(src_root + '/archives.sst') as archivef:        
         archivef.write("---\n")
         archivef.write("title: 'Archives'\n")
         archivef.write("---\n")
@@ -449,21 +514,24 @@ def dump_archives(src_root):
         for post in all_posts:
             date = post_metadata[post][0]
             monthyear = date.strftime("%B %Y") 
-            archive_path = src_root + date.strftime("%Y/%m/index.md")
-            if archive_path not in archive_paths_created:
-                archive_paths_created.append(archive_path)
+            archive_path = src_root + date.strftime("/%Y/%m/index.sst")
+            if archive_path not in archive_paths:
                 # write a link to this new archive to the main archive file
                 archivef.write('- [' + monthyear +'](' + \
-                               item_url(src_root,archive_path) + ')\n' )
-                with open(archive_path,'w') as outf:
-                    # create a header for a new archive
-                    outf.write("---\n")
-                    outf.write("title: 'Archive " + monthyear + "'\n")        
-                    outf.write("---\n")
-            # append an entry
-            with open(archive_path,'a') as outf:
-                dump_entry(src_root,post,outf)
-        
+                               item_url(src_root,Path(archive_path)) + ')\n' )
+                # create a new delayed file for this monthly archvie
+                outf = DelayedTextfile(archive_path)
+                archive_paths[archive_path] = outf
+                # create a header for a new archive
+                outf.write("---\n")
+                outf.write("title: 'Archive " + monthyear + "'\n")        
+                outf.write("---\n")
+            # append the entry
+            dump_entry(src_root,post,outf)
+    # close all archive files
+    for archive_path in archive_paths:
+        archive_paths[archive_path].close()
+    
 # --- HOME
 
 def summarize_post(src_root,post,tmpfile):
@@ -490,18 +558,21 @@ def dump_home(src_root,dest_root):
             summarize_post(src_root,post,tmpdir + "/summary." + str(count) + ".html")
         # create the home page, including the summarized entries    
         summary_template = get_template('ssst-summary.html')
-        command = 'pandoc -s -f markdown --template=' + summary_template + \
+        dest = str(dest_root) + '/index.html'
+        dest_tmp = dest + '.tmp'
+        command = 'pandoc -s -f markdown -t html --template=' + \
+            summary_template + \
             ' -A '+ tmpdir + '/summary.5.html' + \
             ' -A '+ tmpdir + '/summary.4.html' + \
             ' -A '+ tmpdir + '/summary.3.html' + \
             ' -A '+ tmpdir + '/summary.2.html' + \
             ' -A '+ tmpdir + '/summary.1.html' + \
             ' --metadata root=' + hosting_root + \
-            ' -o '+ str(dest_root)+ 'index.html ' + \
-            str(src_root)+'index.md'
+            ' -o '+ dest_tmp + ' ' + \
+            str(src_root)+'/index.md'
         log(4,'Command ' + command)
         subprocess.run(command,shell=True,capture_output=False)
-            
+        replace_when_changed(dest,dest_tmp)    
 
     
 # --- MAKE
@@ -536,19 +607,27 @@ def is_workitem(src_root,dest_root,src):
         if (dest_time <= comment_time):
             return True
     return False
-        
-# Determine posts and pages that need to be (re)made
-def worklist (src_root,dest_root):
-    log(0,'Determining files to process...')
+
+
+# match all files with extension in the tree rooted at src_root and return a
+# list of all files that need to be (re)made
+def worklist_for (src_root,dest_root,extension):
     list = []
-    # traverse all files with extension .md in the subtree rooted at src
-    for src in Path(src_root).glob('**/*.md'):
+    # traverse all files with extension in the subtree rooted at src
+    for src in Path(src_root).glob('**/*' + extension):
         log(2,'Considering: ' + str(src))
         if force or is_workitem(src_root,dest_root,src):
             log(2,'Adding ' + str(src))
             list.append(src)
         else:
             log(2,'Ignoring ' +  str(src))
+    return list
+
+# Determine posts, pages and generated pages that need to be (re)made
+def worklist (src_root,dest_root):
+    log(0,'Determining files to process...')
+    list = worklist_for(src_root,dest_root,".md")
+    list = list + worklist_for(src_root,dest_root,".sst")
     log(0,str(len(list)) + ' files to process found')
     return list
 
@@ -569,37 +648,50 @@ parser.add_argument("-t", "--templates", default=templates,
                     help="Path to directory with templates")
 parser.add_argument("-v", "--verbosity", default=loglevel,
                     help="Verbosity (-1, the default, is silent)")
+parser.add_argument("-l", "--logfile", default="ssst.log",
+                    help="Name of file to store all log messages in")
 parser.add_argument("-f", "--force", default = False, action="store_true",
                     help="(Re)make everything")
 parser.add_argument("-x", "--strict", default = False, action="store_true",
                     help="Abort after warning")
+parser.add_argument("-z", "--summarylength", default=summary_length,
+                    help="Number of lines in post (including YAML header) to include in a summary")
 
 args = parser.parse_args()
 
 # Apply arguments
-src_root = args.source
-dest_root = args.destination
-hosting_root = args.root
-templates = args.templates
+src_root = remove_trailing_slash(args.source)
+dest_root = remove_trailing_slash(args.destination)
+hosting_root = remove_trailing_slash(args.root)
+templates = remove_trailing_slash(args.templates)
 loglevel = int(args.verbosity)
 force = args.force
 strict = args.strict
+logname = args.logfile
+summary_length = int(args.summarylength)
 
-# first collect all tags and categories for all blog entries in the source tree
-# (NOTE: this also processes the category and tag files; this is harmless)
+# open logfile
+if logname != "":
+    logfile = open(logname,"w")
+
+# first collect all metadate (like tags and categories, but also title and date
+# for all blog entries in the source tree. This initializes
+# - files_with_cat
+# - files_with_tag
+# - post_metadata
+# - all_posts (essentially the tags of post_metadata, but sorted by date)
+
 process_posts(src_root)
 log(3,str(files_with_cat))
 log(3,str(files_with_tag))    
 log(3,str(all_posts))
 
-# dump the category and tag files
+# dump the category and tag files in ./category/<categorystring>/index.sst and
+# ./tag/<tagstring>/index.sst
 dump_cats_and_tags(src_root)
 
-# dump the category and tag files
+# dump all archive files ./yyyy/mm/index.sst and ./archives.sst
 dump_archives(src_root)
-
-# TODO: always remake the most recent file that already existed to make sure
-# that its next pointer points to newly added file
 
 # make all html files
 for item in worklist(src_root,dest_root):
@@ -607,5 +699,8 @@ for item in worklist(src_root,dest_root):
 
 # create the home page containing a summary of the most recent posts
 dump_home(src_root,dest_root)
+
+if logfile != None:
+    logfile.close()
 
 
