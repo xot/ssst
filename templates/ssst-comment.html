@@ -1,0 +1,14 @@
+$for(author-meta)$
+  <div class="commentauthor">$author-meta$</div>
+$endfor$
+$if(date)$
+  <div class="commentdate">, $date$</div>
+$endif$
+$if(reply)$
+  <div class="commentreply">
+     (<a href="mailto:comments@xot.nl?subject=$reply$">reply</a>)
+  </div>
+$endif$
+<div class="commentcontent">  
+$body$
+</div>

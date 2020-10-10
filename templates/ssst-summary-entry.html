@@ -1,0 +1,28 @@
+<div class="summaryentry">
+  <div class="entryheader">
+$if(entrydate)$
+    <div class="entrydate">$entrydate$</div>
+$endif$
+$if(categories)$
+    <div class="entrycategories">
+$for(categories)$
+<a class="entrycategory" href="$root$/category/$categories$/">$categories$</a>
+$endfor$
+    </div>
+$endif$
+$if(keywords)$
+    <div class="entrytags">
+$for(keywords)$
+<a class="entrytag" href="$root$/tag/$keywords$/">$keywords$</a>
+$endfor$
+    </div>
+$endif$
+  </div><!--entryheader-->
+$if(title)$
+    <a href="$root$/$path$"><h1 class="entrytitle">$title$</h1></a>
+$endif$
+  <div class="entrycontent">
+  $body$
+  </div><!--entrycontent-->
+  <div class="entrymore">/// <a href="$root$/$path$">read more</a></div>
+</div><!--summaryentry-->
