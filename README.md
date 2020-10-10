@@ -2,12 +2,39 @@
 
 A simple static site tool to maintain websites based on markdown and pandoc
 
-# Dependencies
+# Description
 
-- pandoc
-- pdf2svg
-- python3
-- pyyaml
+Given a set of posts or pages written in markdown, SSST generates the corresponding HTML files as well as any monthly archives, tag and category files. It also generates a home page summarising recent posts, and a main archive file linking to all existing monthly archives.
+
+Depending in the actual structure of the source tree, SSST mimics the directory structure typically used in WordPress hosted sites. This allows one to use SSST to create a static replacement for a site that was previously managed using WordPress, ensuring that any external links that point to a page remain functional.
+
+The conversion is driven by `pandoc`, using template files (that can be changed to customise website layout).
+
+The resulting website is completely static: no PERL or PHP or whatever is required on the webserver. Also, no JavaScript is used. All you need to do is to push the generated HTML to the webserver. 
+
+SSST does not unnecessarily touch generated output files, ensuring that when mirroring the generated HTML files to the webserver (through rsync or FTP mirroring options), only files whose content have actually changed have fresh timestamps and will be considered for upload.
+
+Even though the website is static, SSST also allows users to comment on posts through mail when they click on automatically generated `mailto` links embedded in posts and comments. These links ensure that the path to the post or comment replied to is automatically included in the subject field. This allows you to quickly insert the comment at the right place after moderation.
+
+SSST also processes LaTeX equations in a post, replacing them with SVG images containing the rendered equation in the output HTML. This uses `pdflatex` and `pdf2svg`. If an equation occurs on a single page more than once, only on image is generated and used for every occurrence. (This does not work accross multiple pages containing the same equation.)
+
+# Input
+
+SSST processes markdown files containing posts or pages. SSST expects these files to start with a YAML block containing at least the post/page title (using the `title:` key) and date (using the `date:` key). Values for these keys are  strings (enclosed by single quotes).
+
+The string used as date must either be specified as ISO 8601 dates (like yyyy-mm-dd) or can be specified like this example 'Sun, 19 Apr 2020 08:42:00 +0000'
+
+Any page categories can be specified using the `categories:` key, and any page tags can be specified using the `keywords:` key. The latter two keys expect lists as values, i.e. enumerations separated by comma's enclosed by square brackets. 
+
+Below is an example
+
+```---
+   title: 'Maintaining a static self-hosted site'
+   date: 'Sun, 19 Apr 2020 08:42:00 +0000'
+   categories: [documentation]
+   tags: [static, self-hosted, markdown]
+   ---
+```
 
 # Requirements
 
@@ -132,4 +159,13 @@ Force remake of all pages to (re)create datastructures
     - do essentially the same as above (except ignoring dates)
     - convert page to html (template ssst-page.html)
 
+
+# Dependencies
+
+This is a program written in Python that depends on
+
+- pandoc
+- pdf2svg
+- python3
+- PyYaml
 
