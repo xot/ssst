@@ -1,0 +1,158 @@
+#!/usr/local/bin/python3
+#
+# SSST-ADD
+#
+# Add a new blogpost
+#
+# Part of SSST:
+# A simple static site tool to maintain websites based on markdown and pandoc
+#
+# Author: Jaap-henk Hoepman (jhh@xs4all.nl)
+
+import argparse, sys, os, yaml, datetime, shutil, string
+from pathlib import Path
+
+# Path to the root of the source files tree
+src_root = "./src"
+
+#---
+# WARNINGS AND ERRORS
+#---
+
+# Abort after warning
+strict = False 
+
+# Verbosity
+loglevel = -1
+
+def error (msg):
+    m = "ssst-add: error: %s\n" % str(msg)
+    sys.stderr.write(m)
+    sys.exit (1)
+
+def warning (msg):
+    m = "ssst-add: warning: %s\n" % str(msg)
+    sys.stderr.write(m)
+    if strict:
+        sys.exit (1)
+
+def log (level,msg):
+    m = str(msg)+"\n"
+    if (level <= loglevel):
+        sys.stdout.write(m)
+        
+# ---
+# YAML
+# ---
+
+def get_yaml_dict(src):
+    try:
+        with open(src,"r") as f:
+            yamls = yaml.load_all(f,Loader=yaml.SafeLoader)
+            for y in yamls:
+                return y
+    except:
+        warning('Invalid YAML block in ' + str(src))
+        return {}
+
+# ---
+# Utility
+# ---
+
+# Remove the trailing slash from folder names
+def remove_trailing_slash (s):
+    if len(s) == 0:
+        return s
+    if s[-1] == '/':
+        return s[:-1]
+    return s
+
+# Return the full path of the folder that contains the item
+def item_folder (item):
+    if type(item) is str:
+        item = Path(item)
+    return item.parents[0]
+
+# Replace any non letter or digit with '-'
+def map_char (c):
+    if (c in string.ascii_letters) or (c in string.digits):
+        return c
+    else:
+        return '-'
+
+# Replace any non-letter or digit in the title with -, avoiding repetitions
+# of '-' or a '-' at the end
+def normalise_title(title):
+    res = ""
+    lastchar = '-'
+    for i in range (0,len(title)):
+        c = map_char(title[i])
+        if c != lastchar:
+            lastchar = c
+            res = res + c
+    if res[-1] == "-":
+        return res[:-1]
+    else:
+        return res
+
+# add post at the appropriate location in the src_root (determined by the date
+# and the title, using today if no date found in the post).
+# Add the date to the post when neccessary
+def add(src_root,post):
+    yaml_header = get_yaml_dict(post)
+    if 'title' in yaml_header:
+        title = yaml_header['title']
+    else:
+        error("Post is missing a title")
+    if 'date' in yaml_header:
+        date = yaml_header['date']
+        if type(date) is str:
+            warning("Cannot parse date in post; using today instead")
+            date = datetime.date.today()
+            yaml_header['date'] = date
+    else:
+        date = datetime.date.today()
+        yaml_header['date'] = date
+    if not 'categories' in yaml_header:
+        warning("Post is missing a category")
+    if not 'keywords' in yaml_header:
+        warning("Post is missing a keyword")
+    dest = src_root + date.strftime("/%Y/%m/%d/") + \
+        normalise_title(title) + "/index.md"
+    parent = item_folder(dest)
+    log(1,"Makign parent " + str(parent)) 
+    os.makedirs(parent, exist_ok=True)
+    log(0,"Adding " + post + " to " + dest)
+    # TODO: INSERT DATE IN POST IF NOT PRESENT
+    log(1,"YAML DUMP: " + str(yaml.dump(yaml_header,explicit_start=True)))
+    with open(post,"r") as inf:
+        s = inf.read() 
+        content = s.split("---",maxsplit=2)[2]
+        with open(dest,"w") as outf:
+            yaml.dump(yaml_header,outf,explicit_start=True)
+            outf.write('---\n')
+            outf.write(content)
+        
+# Set up arguments parsing
+parser = argparse.ArgumentParser()
+parser.add_argument("post", help="Filename of post to add")
+parser.add_argument("-s", "--source", default=src_root,
+                    help="Path to the root of the source files tree")
+parser.add_argument("-v", "--verbosity", default=loglevel,
+                    help="Verbosity (-1, the default, is silent)")
+parser.add_argument("-x", "--strict", default = False, action="store_true",
+                    help="Abort after warning")
+args = parser.parse_args()
+
+# Apply arguments
+src_root = remove_trailing_slash(args.source)
+if not os.path.exists(src_root):
+    error('Source tree %s does not exist.' % src_root)
+post = args.post
+if not os.path.exists(post):
+    error('Post %s does not exist.' % post)
+strict = args.strict
+loglevel = int(args.verbosity)
+
+# do it
+add(src_root,post)

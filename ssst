@@ -93,14 +93,14 @@ logfile = None
 # ---
 
 def error (msg):
-    m = "\nSSST: Error: %s\n" % str(msg)
+    m = "ssst: error: %s\n" % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
     sys.exit (1)
 
 def warning (msg):
-    m = "\nSSST: Warning: %s\n" % str(msg)
+    m = "ssst: warning: %s\n" % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -187,6 +187,7 @@ def parse_date (s):
 # a datetime object) to something like "April 03, 2013"
 def normalize_date(s):
     tmp = parse_date(s)
+    # we do NOT want zero-padding on days
     return tmp.strftime("%B ") + str(tmp.date().day) + ", " + str(tmp.date().year)
         
 
