@@ -27,8 +27,8 @@ $endfor$
   <div id="canvas">
     <div id="header">
       <div id="menu">
-	  <a href="https://blog.xot.nl/">Home</a></li> //
-	  <a href="https://blog.xot.nl/about-2/">About</a></li>
+	  <a href="$root$">Home</a></li> //
+	  <a href="$root$/about-2/">About</a></li>
 $if(prev)$
 	  // <a href="$prev$">Previous</a>
 $endif$
@@ -59,14 +59,14 @@ $endif$
 $if(categories)$
       <div id="postcategories">
 $for(categories)$
-<a class="postcategory" href="$root$/category/$categories$/">$categories$</a>
+<a class="postcategory" href="$root$/category/$categories$/index.html">$categories$</a>
 $endfor$
       </div>
 $endif$
 $if(keywords)$
       <div id="posttags">
 $for(keywords)$
-<a class="posttag" href="$root$/tag/$keywords$/">$keywords$</a>
+<a class="posttag" href="$root$/tag/$keywords$/index.html">$keywords$</a>
 $endfor$
       </div>
 $endif$

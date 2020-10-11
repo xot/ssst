@@ -56,7 +56,8 @@ src_root = "./src"
 dest_root = "./public"
 
 # Root where the site is hosted
-hosting_root = dest_root
+# (relative adressing, making the whole site relocateable, is the default)
+hosting_root = ""
 
 # Path to directory with templates
 templates = "./templates"
@@ -144,6 +145,24 @@ def remove_trailing_slash (s):
 def item_folder (item):
     return item.parents[0]
 
+# return the root for the current item
+def item_root (src_root,item):
+    if hosting_root != "":
+        return hosting_root
+    # src_root is the root _without_ trailing backslash 
+    item = str(item)[len(src_root)+1:]
+    log(5,"Computing root for " + item)
+    res = ""
+    for i in range(0,len(item)-1):
+        if item[i] == '/':
+            res = res + "../"
+    # remove trailing backslash
+    res = res[:-1]
+    if res == "":
+        res = "."
+    log(5,"Computed root " + res)    
+    return res
+
 # Determine the html destination path for a markdown source file 
 def item_destination (src_root,dest_root,src):
     src = src.with_suffix('.html')
@@ -153,7 +172,7 @@ def item_destination (src_root,dest_root,src):
 # Determine the link pointing to the item on the hosting site
 def item_url (src_root,item):
     item = item.with_suffix('.html')
-    return hosting_root + '/' + str(item)[len(src_root):]
+    return item_root(src_root,item) + str(item)[len(src_root):]
 
 # Determine list of comments file names (empty if none) for the post
 def item_comments (post):
@@ -330,7 +349,7 @@ def make_post(src_root,src,dest,tmpdir):
     command = 'pandoc --gladtex -s -f markdown --template=' + post_template + \
         ' -A '+ tmpdir + "/comments.html" + \
         ' --metadata reply=' + reply_path + \
-        ' --metadata root=' + hosting_root + \
+        ' --metadata root=' + item_root(src_root,src) + \
         extra_metadata_str + \
         ' -o '+ str(dest) + ' ' + str(src)
     log(4,'Command ' + command)
@@ -457,8 +476,14 @@ def process_posts (srcpath):
 # to the output stream outf
 def dump_entry(src_root,entry,outf):
     (date,title) = post_metadata[entry]
-    datestr = normalize_date(date)    
-    entry_url = item_url(src_root,entry)
+    datestr = normalize_date(date)
+    # FIXME: this now assumes that entry is stored in a file at level 3 in
+    # the tree
+    entry_url = str(entry)[len(src_root):-2] + "html"
+    if hosting_root != "":
+        entry_url = hosting_root + entry_url
+    else:
+        entry_url = "../.." + entry_url        
     outf.write('- [' + title + '](' + entry_url + ') (' + datestr + ')\n')    
     
 
@@ -537,13 +562,20 @@ def dump_archives(src_root):
 
 def summarize_post(src_root,post,tmpfile):
     date = post_metadata[post][0]
-    path = str(post)[len(src_root):-8]
+    # create a URL for the  post to be summarised
+    post_url = str(post)[len(src_root):-2] + "html"
+    if hosting_root != "":
+        post_url = hosting_root + post_url
+    else:
+        post_url = "." + post_url        
+    home = src_root + '/index.html'
     summary_entry_template = get_template('ssst-summary-entry.html')
+#        ' --metadata path=' + item_url(src_root,Path(path)) + \
     command = 'head -n ' + str(summary_length) + ' ' + str(post) + \
         ' | pandoc -s -f markdown --template=' + summary_entry_template + \
         ' --metadata entrydate="' + normalize_date(date) + '"' + \
-        ' --metadata path=' + path + \
-        ' --metadata root=' + hosting_root + \
+        ' --metadata path=' + post_url + \
+        ' --metadata root=' + item_root(src_root,home) + \
         ' -o '+ str(tmpfile)
     log(4,'Command ' + command)
     subprocess.run(command,shell=True,capture_output=False)
@@ -568,9 +600,9 @@ def dump_home(src_root,dest_root):
             ' -A '+ tmpdir + '/summary.3.html' + \
             ' -A '+ tmpdir + '/summary.2.html' + \
             ' -A '+ tmpdir + '/summary.1.html' + \
-            ' --metadata root=' + hosting_root + \
+            ' --metadata root=' + item_root(dest_root,dest) + \
             ' -o '+ dest_tmp + ' ' + \
-            str(src_root)+'/index.md'
+            str(src_root) + '/index.md'
         log(4,'Command ' + command)
         subprocess.run(command,shell=True,capture_output=False)
         replace_when_changed(dest,dest_tmp)    
@@ -644,7 +676,7 @@ parser.add_argument("-s", "--source", default=src_root,
 parser.add_argument("-d", "--destination", default=dest_root,
                     help="Path to the root of the destination files tree")
 parser.add_argument("-r", "--root", default=hosting_root,
-                    help="Root where the site is hosted")
+                    help="Root where the site is hosted. If omitted, the root is found using relative addressing, making the site relocateable")
 parser.add_argument("-t", "--templates", default=templates,
                     help="Path to directory with templates")
 parser.add_argument("-v", "--verbosity", default=loglevel,
