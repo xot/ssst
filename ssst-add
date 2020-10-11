@@ -104,6 +104,7 @@ def add(src_root,post):
         title = yaml_header['title']
     else:
         error("Post is missing a title")
+    # get the date; replace with today if not present (or in wrong format)
     if 'date' in yaml_header:
         date = yaml_header['date']
         if type(date) is str:
@@ -113,18 +114,23 @@ def add(src_root,post):
     else:
         date = datetime.date.today()
         yaml_header['date'] = date
+    # warn for missing categories and keywrods
     if not 'categories' in yaml_header:
         warning("Post is missing a category")
     if not 'keywords' in yaml_header:
         warning("Post is missing a keyword")
     dest = src_root + date.strftime("/%Y/%m/%d/") + \
         normalise_title(title) + "/index.md"
+    # make the parent folder if it doesn't exist yet
     parent = item_folder(dest)
     log(1,"Makign parent " + str(parent)) 
     os.makedirs(parent, exist_ok=True)
+    # copy the post to its destination, replacing the yaml
+    # block with the one wit the correct date
     log(0,"Adding " + post + " to " + dest)
     with open(post,"r") as inf:
-        s = inf.read() 
+        s = inf.read()
+        # the content is after the second occurance of the YML separator '---'
         content = s.split("---",maxsplit=2)[2]
         with open(dest,"w") as outf:
             yaml.dump(yaml_header,outf,explicit_start=True)
