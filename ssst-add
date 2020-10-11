@@ -123,8 +123,6 @@ def add(src_root,post):
     log(1,"Makign parent " + str(parent)) 
     os.makedirs(parent, exist_ok=True)
     log(0,"Adding " + post + " to " + dest)
-    # TODO: INSERT DATE IN POST IF NOT PRESENT
-    log(1,"YAML DUMP: " + str(yaml.dump(yaml_header,explicit_start=True)))
     with open(post,"r") as inf:
         s = inf.read() 
         content = s.split("---",maxsplit=2)[2]
