@@ -239,17 +239,18 @@ def replace_when_changed (current: Path, update: Path):
 # that the YAML parser fails to parse)
 def parse_date (s):
     if type(s) is str:
-        return datetime.datetime.strptime(s,"%a, %d %b %Y %H:%M:%S %z")
+        time = datetime.datetime.strptime(s,"%a, %d %b %Y %H:%M:%S %z")
+        return time.date()
     else:
         return s
 
 # Convert a date (either a string like "Wed, 03 Apr 2013 12:02:24 +0000" or
 # a datetime object) to something like "April 03, 2013"
 # - date: datetime object to be converted to a string
-def normalize_date(date: datetime.datetime) -> str:
+def normalize_date(date) -> str:
     tmp = parse_date(date)
     # we do NOT want zero-padding on days
-    return tmp.strftime("%B ") + str(tmp.date().day) + ", " + str(tmp.date().year)
+    return tmp.strftime("%B ") + str(tmp.day) + ", " + str(tmp.year)
         
 # ---
 # LaTeX EQUATIONS
