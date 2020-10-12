@@ -651,7 +651,6 @@ def dump_home():
         summary_template = get_template('ssst-summary.html')
         src = src_path_of('index.md')                       
         dest = dest_of('index.html')
-        log(0,'DEST : ' + str(dest))
         dest_tmp = dest.with_suffix('.tmp')
         command = 'pandoc -s -f markdown -t html --template=' + \
             str(summary_template) + \
