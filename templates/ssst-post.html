@@ -76,10 +76,10 @@ $endif$
   $body$
       <div id="posterror">
       In case you spot any errors on this page, please
-      <a href="mailto:blog@xot.nl?subject='NOTIFICATION: $reply$'">notify</a> me!
+      <a href="mailto:EMAILADDRESS?subject='NOTIFICATION: $reply$'">notify</a> me!
       </div>
       <div id="postreply">
-      Or, leave a <a href="mailto:blog@xot.nl?subject='COMMENT: $reply$'">comment</a>.
+      Or, leave a <a href="EMAILADDRESS?subject='COMMENT: $reply$'">comment</a>.
       </div>
 $for(include-after)$
 $include-after$
@@ -87,15 +87,14 @@ $endfor$
     </div><!--postcontent-->
   </div><!--post-->
   <div id="footer">
-    <hr>
-    <a id="search" href="https://www.startpage.com/do/dsearch?query=site:blog.xot.nl">Search</a>
+    <a id="search" href="https://www.startpage.com/do/dsearch?query=site:SITE">Search</a>
     ///
     <a id="archives" href="$root$/archives.html">Archives</a>
     ///
     <span id="feed">RSS Feed
     </span>
     ///
-    <a id="subscribe" href="mailto:blog@xot.nl?subject=Subscribe">Subscribe</a>
+    <a id="subscribe" href="mailto:EMAILADDRESS?subject=Subscribe">Subscribe</a>
   </div><!--footer-->
   </div><!--canvas-->
 </body>

@@ -1,0 +1,46 @@
+/* SSST CSS
+ *
+ * root style sheet for all content
+ */
+
+
+/* pandoc defaults */
+
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+/* defining constants */
+:root {
+  --accent-color: blue; 
+}
+
+/* main elements */
+
+BODY 
+{
+}
+
+div#canvas {
+    font-family: serif ;
+}
+
+p {
+}
+
+h1, h2, h3, h4 {
+    font-family: sans-serif; 
+    color: var(--accent-color);
+}
+
+blockquote {
+    font-style: italic ;
+}
+
+
+div#footer {
+}

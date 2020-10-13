@@ -1,0 +1,49 @@
+/* SSST CSS
+ *
+ * style sheet for blog posts
+ *
+ * HTML structure of posts:
+ *
+ * <html>
+ * <head>...</head>
+ * <body>
+ *   <div id="canvas">
+ *     <div id="header">
+ *       <div id="menu">
+ *       </div><!--menu-->
+ *     </div><!--header-->
+ *     <div id="post">
+ *       <div id="postheader">
+ *          <h1 id="title"></h1>
+ *          <div id="subtitle"></div>
+ *          <div id="postauthor"></div>
+ *          <div id="postdate"></div>
+ *          <div id="postcommentcount"></div>
+ *          <div id="postcategories">
+ *            <a class="postcategory"></a>
+ *          </div>
+ *          <div id="posttags">
+ *            <a class="posttag"></a>
+ *          </div>
+ *       </div><!--postheader-->
+ *       <div id="postcontent">
+ *         body of the post
+ *         <div id="posterror">
+ *         </div>
+ *         <div id="postreply">
+ *         </div>
+ *       </div><!--postcontent-->
+ *     </div><!--post-->
+ *     <div id="footer">
+ *       <a id="search"></a>
+ *       <a id="archives"></a>
+ *       <span id="feed"></span>
+ *       <a id="subscribe"></a>
+ *   </div> 
+ * </div><!--footer-->
+ *   </div><!--canvas-->
+ * </body>
+ * </html>
+ */
+
+@import "ssst.css" ;
