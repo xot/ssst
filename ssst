@@ -78,17 +78,21 @@ strict = False
 # Lenght of summaries (including YAML header)
 summary_length = 20
 
-# dictionary of all tags and files with those tags
+# Dictionary of all tags and relative pathnames for the posts with those tags
+# (filled by process_posts -> process_post_metadata) 
 items_with_tag = {}
 
-# dictionary of all categories and files with those categories
+# Dictionary of all categories relative pathnames for the posts with those categories
+# (filled by process_posts -> process_post_metadata) 
 items_with_cat = {}
 
-# dictionary of all posts metadata (as tuples (date,title)) indexed
+# Dictionary of all posts metadata (as tuples (date,title)) indexed
 # by the relative pathname for the post
+# (filled by process_posts -> process_post_metadata) 
 post_metadata = {}
 
-# list of all relative pathnames for posts, sorted by date (with the help of post_metadata)
+# List of all relative pathnames for posts, sorted by date
+# (with the help of process_posts)
 all_posts = []
 
 # logfile
@@ -365,7 +369,7 @@ def process_equations (item):
 # --- POSTS
 
 # return the path to next post following item; '' if none
-# (this uses that all posts is sorted)
+# (this uses the fact that all_posts is sorted by date)
 def next_post(item):
     if item in all_posts:
         pos = all_posts.index(item)
@@ -374,7 +378,7 @@ def next_post(item):
     return ''
 
 # return the path to previous post following item; '' if none
-# (this uses that all posts is sorted)
+# (this uses the fact that all_posts is sorted by date)
 def prev_post(item):
     if item in all_posts:
         pos = all_posts.index(item)
@@ -656,7 +660,7 @@ def dump_home():
             count = count + 1
             summarize_post(post,tmpdir + "/summary." + str(count) + ".html")
         # create the home page, including the summarized entries    
-        summary_template = get_template('ssst-summary.html')
+        summary_template = get_template('ssst-homepage.html')
         src = src_path_of('index.sst')                       
         dest = dest_of('index.html')
         dest_tmp = dest.with_suffix('.tmp')
