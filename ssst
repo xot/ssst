@@ -403,6 +403,12 @@ def make_post(item,tmpdir):
     if prev != '':
         extra_metadata_str = extra_metadata_str + \
             ' --metadata prev="' + item_url(prev,item) + '"'
+    # add normalised date metadata for posts (archives and tag/category indices
+    # do  not have this, but are treated as posts for the time being)
+    if item in post_metadata:
+        date = post_metadata[item][0]
+        extra_metadata_str = extra_metadata_str + \
+            ' --metadata date="' + normalize_date(date) + '"' 
     # build the command string
     src_path = src_path_of(item)
     dest_path = str(dest_of(item))
@@ -521,9 +527,10 @@ def process_post_metadata(post):
     if 'date' in yaml: 
         tmp = yaml['date']
         date = parse_date(tmp)
-        post_metadata[post_relpath] = (date,title)
     else:
-        warning("Date expected but not found in " + str(post))
+        date = datetime.date.today()
+        warning("Date expected but not found in " + str(post) + ". Using today.")
+    post_metadata[post_relpath] = (date,title)
 
 def process_posts (srcpath):
     log(0,"Processing posts")
@@ -650,7 +657,7 @@ def dump_home():
             summarize_post(post,tmpdir + "/summary." + str(count) + ".html")
         # create the home page, including the summarized entries    
         summary_template = get_template('ssst-summary.html')
-        src = src_path_of('index.md')                       
+        src = src_path_of('index.sst')                       
         dest = dest_of('index.html')
         dest_tmp = dest.with_suffix('.tmp')
         command = 'pandoc -s -f markdown -t html --template=' + \
