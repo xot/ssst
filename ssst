@@ -548,10 +548,24 @@ def process_post_metadata(post):
         warning("Date expected but not found in " + str(post) + ". Using today.")
     post_metadata[post_relpath] = (date,title)
 
+# Match the start of a path for a post
+post_re = re.compile('[0-9][0-9][0-9][0-9].*')
+
+    
+# Determine whether the item is a post (or a page)
+# - item: relative path to item to determine type of
+def is_post(item: Path) -> bool:
+    log(4,'Determining whether this is a post or a page: ' + str(item))
+    ret = (post_re.match(str(item)) != None) and (item.suffix == ".md")
+    log(4,'Is post is ' + str(ret))
+    return ret 
+
+    
 def process_posts (srcpath):
     log(0,"Processing posts")
-    for post in Path(src_root).glob('**/*.md'):
-        process_post_metadata(post)
+    for item in Path(src_root).glob('**/*.md'):
+        if is_post(item.relative_to(src_root)):
+            process_post_metadata(item)
     # sort all posts by date
     for post in post_metadata:
         all_posts.append(post)
@@ -697,7 +711,7 @@ def make(item):
     log(1,'Processing ' + str(src_root / item))
     with tempfile.TemporaryDirectory() as tmpdir:
         make_comments(item,tmpdir)
-        if item.suffix == ".md":
+        if is_post(item):
             make_post(item,tmpdir)
         else:
             make_page(item,tmpdir)
