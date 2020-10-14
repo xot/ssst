@@ -679,6 +679,7 @@ def summarize_post(post,tmpfile):
 def dump_home():
     log(0,'Making home page.')
     recent_posts = all_posts[-5:]
+    recent_posts.reverse()
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
         pandoc_append_str = ""
