@@ -388,11 +388,9 @@ def prev_post(item):
 
 
 
-# Make the html post from the md source specified by item, merging
-# in any comments
-def make_post(item,tmpdir):
-    log(2,'- Processing post')
-    post_template = get_template('ssst-post.html')
+# Make the html item from the md or sst source specified by item, merging
+# in any comments, and using item_template as the template
+def make_item(item,tmpdir,item_template):
     # create destination folder if it doesnt exist yet
     os.makedirs(dest_folder_of(item), exist_ok=True)
     # blog-post path for reply links: strip the source prefix in front
@@ -417,7 +415,7 @@ def make_post(item,tmpdir):
     src_path = src_path_of(item)
     dest_path = str(dest_of(item))
     src_path = str(src_path)
-    command = 'pandoc --gladtex -s -f markdown --template=' + str(post_template) + \
+    command = 'pandoc --gladtex -s -f markdown --template=' + str(item_template) + \
         ' -A '+ tmpdir + "/comments.html" + \
         ' --metadata reply=' + reply_path + \
         ' --metadata root=' + str(item_root(item)) + \
@@ -425,6 +423,20 @@ def make_post(item,tmpdir):
         ' -o '+ dest_path + ' ' + src_path
     log(4,'Command ' + command)
     subprocess.run(command,shell=True,capture_output=False)
+
+# Make the html post from the md source specified by item, merging
+# in any comments
+def make_post(post,tmpdir):
+    log(2,'- Processing post')
+    post_template = get_template('ssst-post.html')
+    make_item(post,tmpdir,post_template)
+    
+# Make the html post from the md source specified by item, merging
+# in any comments
+def make_page(page,tmpdir):
+    log(2,'- Processing page')
+    page_template = get_template('ssst-page.html')
+    make_item(page,tmpdir,page_template)
 
 # --- COMMENTS
 
@@ -685,7 +697,10 @@ def make(item):
     log(1,'Processing ' + str(src_root / item))
     with tempfile.TemporaryDirectory() as tmpdir:
         make_comments(item,tmpdir)
-        make_post(item,tmpdir)
+        if item.suffix == ".md":
+            make_post(item,tmpdir)
+        else:
+            make_page(item,tmpdir)
     process_equations(item)
     copy_media(item)
 
