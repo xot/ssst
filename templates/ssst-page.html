@@ -8,9 +8,6 @@
 $for(author-meta)$
   <meta name="author" content="$author-meta$" />
 $endfor$
-$if(date)$
-  <meta name="dcterms.date" content="$date$" />
-$endif$
 $if(keywords)$
   <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
 $endif$
@@ -50,9 +47,6 @@ $endif$
 $for(author)$
       <div id="author">$author$</div>
 $endfor$
-$if(date)$
-      <div id="date">$date$</div>
-$endif$
     </div><!--pageheader-->
 $endif$
     <div id="pagecontent">

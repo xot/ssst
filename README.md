@@ -50,7 +50,8 @@ optional arguments:
 
 # Input
 
-SSST processes markdown files containing posts or pages. SSST expects these files to start with a YAML block containing at least the post/page title (using the `title:` key) and date (using the `date:` key). Values for these keys are  strings (enclosed by single quotes).
+SSST processes markdown files containing posts or pages. SSST expects these files to start with a YAML block containing at least the post/page title (using the `title:` key). Posts also have a date (using the `date:` key). Pages do not.
+Values for these keys are  strings (enclosed by single quotes).
 
 The string used as date must either be specified as ISO 8601 dates (like yyyy-mm-dd) or can be specified like this example 'Sun, 19 Apr 2020 08:42:00 +0000'
 
