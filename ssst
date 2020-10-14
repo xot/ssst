@@ -681,10 +681,13 @@ def dump_home():
     recent_posts = all_posts[-5:]
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
+        pandoc_append_str = ""
         for post in recent_posts:
             # create a temporary html file summarizing this entry
             count = count + 1
-            summarize_post(post,tmpdir + "/summary." + str(count) + ".html")
+            summary_name = tmpdir + "/summary." + str(count) + ".html"
+            summarize_post(post,summary_name)
+            pandoc_append_str = pandoc_append_str + ' -A ' + summary_name 
         # create the home page, including the summarized entries    
         summary_template = get_template('ssst-homepage.html')
         src = src_path_of('index.sst')                       
@@ -692,11 +695,7 @@ def dump_home():
         dest_tmp = dest.with_suffix('.tmp')
         command = 'pandoc -s -f markdown -t html --template=' + \
             str(summary_template) + \
-            ' -A '+ tmpdir + '/summary.5.html' + \
-            ' -A '+ tmpdir + '/summary.4.html' + \
-            ' -A '+ tmpdir + '/summary.3.html' + \
-            ' -A '+ tmpdir + '/summary.2.html' + \
-            ' -A '+ tmpdir + '/summary.1.html' + \
+            pandoc_append_str + \
             ' --metadata root=' + str(item_root(Path('index.html'))) + \
             ' -o '+ str(dest_tmp) + ' ' + str(src)
         log(4,'Command ' + command)
