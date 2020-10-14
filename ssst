@@ -586,7 +586,7 @@ def dump_entry(entry,outname,outf):
 # (with title as title and label as subtitle)
 # containing a list of links to all posts in filelist
 # (assumed to be sorted by date)
-def dump(out_name,title,label,filelist):
+def dump(out_name,type,label,filelist):
     # sort the list of pathnames by date
     # (using the fact that the path encodes the file date)
     filelist.sort()
@@ -594,8 +594,8 @@ def dump(out_name,title,label,filelist):
 #    with open(out_name,"w") as outf:
     with DelayedTextfile(src_path_of(out_name)) as outf:
         outf.write("---\n")
-        outf.write("title: '" + title + "'\n")        
-        outf.write("subtitle: '" + label.capitalize() + "'\n")
+        outf.write("title: '" + label.capitalize() + "'\n")
+        outf.write("subtitle: '" + type + "'\n")        
         outf.write("---\n")        
         for entry in filelist:
             dump_entry(entry,out_name,outf)
