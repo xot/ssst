@@ -724,6 +724,10 @@ def make(item):
     process_equations(item)
     copy_media(item)
 
+# Minimum amount of seconds difference between destination and source m
+# modification time before an item will be considered a workitem
+grace_period = 60
+    
 # Determine whether the osurce file sp (given src and dest directories)
 # should be remade: if the destination does not exist, or when it is older
 # than the source file or any of its associated comments
@@ -736,13 +740,13 @@ def is_workitem(item):
         return True
     log(4,'Destination exists.')    
     dest_time = os.path.getmtime(dest)
-    if (dest_time <= src_time) :
+    if (dest_time <= src_time - grace_period) :
         return True
     comments = commentfiles_for(item)
     for comment in comments:
         log(5,'Comment found: ' + str(comment))
         comment_time = os.path.getmtime(comment)
-        if (dest_time <= comment_time):
+        if (dest_time <= comment_time - grace_period):
             return True
     return False
 
