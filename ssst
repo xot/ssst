@@ -712,9 +712,20 @@ def dump_home():
     
 # --- MAKE
 
+# Remove all files (not diretories) from a folder
+def clean_folder(folder: Path):
+    log(2,'Cleaning destination ' + str(folder))
+    for f in folder.glob('*'):
+        if not f.is_dir():
+            os.remove(f)
+
 # Make the output (in dest_root) for the item (stored src_root)
 def make(item):
     log(1,'Processing ' + str(src_root / item))
+    # Clean the destination folder
+    dest_folder = dest_folder_of(item)
+    if dest_folder.exists():
+        clean_folder(dest_folder)
     with tempfile.TemporaryDirectory() as tmpdir:
         make_comments(item,tmpdir)
         if is_post(item):
