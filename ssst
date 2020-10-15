@@ -786,9 +786,19 @@ def worklist_for (src_root,dest_root,extension):
 def worklist (src_root,dest_root):
     log(0,'Determining files to process...')
     list = worklist_for(src_root,dest_root,".md")
-    list = list + worklist_for(src_root,dest_root,".sst")
-    log(0,str(len(list)) + ' files to process found')
-    return list
+    extended_list = list.copy()
+    # insert any "neighbours" of posts in the worklist as well, to ensure
+    # that their next and prev links are updated
+    for post in list:
+        prev = prev_post(post)
+        if (prev != '') and (prev not in extended_list):
+            extended_list.append(prev)
+        next = next_post(post)
+        if (next != '') and (next not in extended_list):
+            extended_list.append(next)
+    final_list = extended_list + worklist_for(src_root,dest_root,".sst")
+    log(0,str(len(final_list)) + ' files to process found')
+    return final_list
 
 
 # ---
