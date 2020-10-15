@@ -525,6 +525,9 @@ def process_post_metadata(post):
     if 'categories' in yaml:
         cats = yaml['categories']
         log(3,'Categories: ' + str(cats))
+        # careful: categories may be a single string
+        if type(cats) is str:
+            cats = [ cats ]
         for cat in cats:
             if cat not in items_with_cat:
                 items_with_cat[cat] = []
@@ -532,6 +535,9 @@ def process_post_metadata(post):
     if 'keywords' in yaml:
         tags = yaml['keywords']
         log(3,'Tags: ' + str(tags))
+        # careful: categories may be a single string
+        if type(tags) is str:
+            tags = [ tags ]
         for tag in tags:
             if tag not in items_with_tag:
                 items_with_tag[tag] = []
