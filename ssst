@@ -233,10 +233,10 @@ def replace_when_changed (current: Path, update: Path):
     if (not current.exists()) or \
        (not filecmp.cmp(current,update,shallow=False)): 
         log(4,"File changed "+ str(current))
-        shutil.copy2(update,current)
+        update.rename(current)
     else:
         log(4,"File not changed "+ str(current))
-    os.remove(update)
+        update.unlink() # remove file
 
 # Parse a date if it is a string, return unchanced otherwise.
 # (Only parses wordpress generated dates like "Sun, 19 Apr 2020 08:42:00 +0000"
@@ -412,17 +412,19 @@ def make_item(item,tmpdir,item_template):
         extra_metadata_str = extra_metadata_str + \
             ' --metadata date="' + normalize_date(date) + '"' 
     # build the command string
-    src_path = src_path_of(item)
-    dest_path = str(dest_of(item))
-    src_path = str(src_path)
-    command = 'pandoc --gladtex -s -f markdown --template=' + str(item_template) + \
+    src = src_path_of(item)
+    dest = dest_of(item)
+    dest_tmp = dest.with_suffix('.tmp')
+    command = 'pandoc --gladtex -s -f markdown -t html --template=' + \
+        str(item_template) + \
         ' -A '+ tmpdir + "/comments.html" + \
         ' --metadata reply=' + reply_path + \
         ' --metadata root=' + str(item_root(item)) + \
         extra_metadata_str + \
-        ' -o '+ dest_path + ' ' + src_path
+        ' -o '+ str(dest_tmp) + ' ' + str(src)
     log(4,'Command ' + command)
     subprocess.run(command,shell=True,capture_output=False)
+    replace_when_changed(dest,dest_tmp)    
 
 # Make the html post from the md source specified by item, merging
 # in any comments
@@ -714,7 +716,7 @@ def dump_home():
 
 # Remove all files (not diretories) from a folder
 def clean_folder(folder: Path):
-    log(2,'Cleaning destination ' + str(folder))
+    log(2,'- Cleaning destination ' + str(folder))
     for f in folder.glob('*'):
         if not f.is_dir():
             os.remove(f)
