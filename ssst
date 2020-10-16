@@ -244,20 +244,20 @@ def replace_when_changed (current: Path, update: Path):
 # Parse a date if it is a string, return unchanced otherwise.
 # (Only parses wordpress generated dates like "Sun, 19 Apr 2020 08:42:00 +0000"
 # that the YAML parser fails to parse)
-def parse_date (s):
+# - s: string to parse if it isn't a date
+def parse_date (s) -> datetime.date:
     if type(s) is str:
         time = datetime.datetime.strptime(s,"%a, %d %b %Y %H:%M:%S %z")
         return time.date()
     else:
         return s
 
-# Convert a date (either a string like "Wed, 03 Apr 2013 12:02:24 +0000" or
-# a datetime object) to something like "April 03, 2013"
+# Convert a date to something like "April 03, 2013"
 # - date: datetime object to be converted to a string
-def normalize_date(date) -> str:
-    tmp = parse_date(date)
+def normalize_date(date: datetime.date) -> str:
+    # tmp = parse_date(date) # this should not be necessary
     # we do NOT want zero-padding on days
-    return tmp.strftime("%B ") + str(tmp.day) + ", " + str(tmp.year)
+    return date.strftime("%B ") + str(date.day) + ", " + str(date.year)
         
 # ---
 # LaTeX EQUATIONS
@@ -688,6 +688,35 @@ def dump_archives(src_root):
     
 # --- HOME
 
+# FIXME: als gix href's, and handle case when summary is not generated
+# in the root
+
+localpath_re = re.compile(r'(src=").')
+
+localpath_replacement = '' 
+
+def substitute_localpath(matchobj):
+    if matchobj:
+        # get the matched latex expression string
+        match = matchobj.group(1)
+        return('src="' + localpath_replacement)
+
+# Fix the relative links in the output generated for post
+# (pointing to media like images) when the output is not in the same directory
+# as the post (eg when creating a summary)
+# - post: relative path to the post
+# - fname: (HTML) output file generated
+def fix_local_links(post,fname):
+    global localpath_replacement
+    localpath_replacement = str(post.parent)
+    with open(fname,'r') as f:
+        # read the file as one string
+        orig_html = f.read()
+        processed_html = localpath_re.sub(substitute_localpath, orig_html, count=0)
+    # write the result back to the file
+    with open(fname,'w') as f:
+        f.write(processed_html)
+    
 def summarize_post(post,tmpfile):
     date = post_metadata[post][0]
     # create a URL for the  post to be summarised
@@ -702,6 +731,7 @@ def summarize_post(post,tmpfile):
         ' -o '+ str(tmpfile)
     log(4,'Command ' + command)
     subprocess.run(command,shell=True,capture_output=False)
+    fix_local_links(post,tmpfile)
 
 
 def dump_home():
