@@ -688,18 +688,21 @@ def dump_archives(src_root):
     
 # --- HOME
 
-# FIXME: als gix href's, and handle case when summary is not generated
-# in the root
+# Regular expression matching img src's or href's that could point to a local
+# media object (i.e. paths that start with '.').  
+localpath_re = re.compile(r'((src|href)=").')
 
-localpath_re = re.compile(r'(src=").')
-
+# Replacement to use when replacing local paths 
 localpath_replacement = '' 
 
+# filter replacing matched localpath with replacement text
+# (using localpath_replacement)
+# - matchobj: current match
 def substitute_localpath(matchobj):
     if matchobj:
         # get the matched latex expression string
         match = matchobj.group(1)
-        return('src="' + localpath_replacement)
+        return(match + localpath_replacement)
 
 # Fix the relative links in the output generated for post
 # (pointing to media like images) when the output is not in the same directory
@@ -708,11 +711,12 @@ def substitute_localpath(matchobj):
 # - fname: (HTML) output file generated
 def fix_local_links(post,fname):
     global localpath_replacement
+    # FIXME: handle case when summary is not generated in the root
     localpath_replacement = str(post.parent)
     with open(fname,'r') as f:
         # read the file as one string
         orig_html = f.read()
-        processed_html = localpath_re.sub(substitute_localpath, orig_html, count=0)
+    processed_html = localpath_re.sub(substitute_localpath, orig_html, count=0)
     # write the result back to the file
     with open(fname,'w') as f:
         f.write(processed_html)
