@@ -807,11 +807,11 @@ def make(item: Path):
 # MAKE HOME
 # ---
 
-# Regular expression matching img src's that point to a local
-# media object (i.e. paths that start with '.').
-# FIXME: TO BE EXTENDED TO ALSO MATCH LOCAL HREFS. PROBLEM: RELATIVE LINKS
-# START WITH ./ TOO
-localpath_re = re.compile(r'(src=")\.')
+# Regular expression matching img src's and href's that point to a local
+# media object (i.e. paths that start with './' and then do not contain
+# further slashes).
+# (FRAGILE CODE: OTHER ITEMS MAY ALSO START WITH ./ )
+localpath_re = re.compile(r'(src="|href=")\.(/[^/ ]+)')
 
 # Replacement to use when replacing local paths 
 localpath_replacement = '' 
@@ -822,8 +822,9 @@ localpath_replacement = ''
 def substitute_localpath(matchobj) -> str:
     if matchobj:
         # get the matched latex expression string
-        match = matchobj.group(1)
-        return(match + localpath_replacement)
+        prefix = matchobj.group(1)
+        name = matchobj.group(2)        
+        return(prefix + localpath_replacement + name)
 
 
 # Summarasise a post and write the summary to a file. Summary is generated using
