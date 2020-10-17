@@ -180,6 +180,7 @@ def dest_of (item: Path) -> Path:
 
 # Determine list of Paths containing the comments (empty if none) for the item
 # I.e. all files matching <src_root> / <parent_folder> / *.mdc
+# - item: relative path to the item
 def commentfiles_for (item: Path):
     return (src_root / item.parent).glob('*.mdc')
 
@@ -194,8 +195,8 @@ def item_root (item: Path) -> str:
         item = str(item)
         log(5,"Computing root for " + item)
         res = ""
-        for i in range(0,len(item)-1):
-            if item[i] == '/':
+        for c in item:
+            if c == '/':
                 res = res + "../"
         # remove trailing backslash
         res = res[:-1]
@@ -806,9 +807,11 @@ def make(item: Path):
 # MAKE HOME
 # ---
 
-# Regular expression matching img src's or href's that point to a local
-# media object (i.e. paths that start with '.').  
-localpath_re = re.compile(r'((src|href)=").')
+# Regular expression matching img src's that point to a local
+# media object (i.e. paths that start with '.').
+# FIXME: TO BE EXTENDED TO ALSO MATCH LOCAL HREFS. PROBLEM: RELATIVE LINKS
+# START WITH ./ TOO
+localpath_re = re.compile(r'(src=")\.')
 
 # Replacement to use when replacing local paths 
 localpath_replacement = '' 
@@ -840,8 +843,8 @@ def summarize_post(post: Path, fname: str):
     command = 'head -n ' + str(summary_length) + ' ' + str(post_path) + \
             ' | pandoc -s -f markdown --template=' + str(summary_entry_template) + \
         ' --metadata entrydate="' + normalize_date(date) + '"' + \
-        ' --metadata root=' + str(item_root(Path('index.html'))) + \
-        ' --metadata path=' + post_url + \
+        ' --metadata root="' + str(item_root(Path('index.html'))) + '"' + \
+        ' --metadata path="' + post_url + '"' + \
         ' -o '+ str(fname)
     log(4,'Command ' + command)
     subprocess.run(command,shell=True,capture_output=False)
