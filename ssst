@@ -811,7 +811,7 @@ def make(item: Path):
 # media object (i.e. paths that start with './' and then do not contain
 # further slashes).
 # (FRAGILE CODE: OTHER ITEMS MAY ALSO START WITH ./ )
-localpath_re = re.compile(r'(src="|href=")\.(/[^/ ]+)')
+localpath_re = re.compile(r'(src="|href=")\.(/[^/ ]+)"')
 
 # Replacement to use when replacing local paths 
 localpath_replacement = '' 
@@ -824,7 +824,7 @@ def substitute_localpath(matchobj) -> str:
         # get the matched latex expression string
         prefix = matchobj.group(1)
         name = matchobj.group(2)        
-        return(prefix + localpath_replacement + name)
+        return(prefix + localpath_replacement + name + '"')
 
 
 # Summarasise a post and write the summary to a file. Summary is generated using
