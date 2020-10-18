@@ -30,11 +30,11 @@ class DelayedTextfile(StringIO):
     def close(self):
         newcontents = self.getvalue()
         if self.path.exists():
-            with open(self.path,"r") as f:
+            with open(self.path,'r') as f:
                 oldcontents = f.read()
                 if oldcontents == newcontents:
                     return False
-        with open(self.path,"w") as f:
+        with open(self.path,'w') as f:
             f.write(newcontents)
             return True
 
@@ -144,7 +144,7 @@ def log (level: int, msg: str):
 # - src: full path to the file
 def get_yaml_dict(src: Path):
     try:
-        with open(src,"r") as f:
+        with open(src,'r') as f:
             yamls = yaml.load_all(f,Loader=yaml.SafeLoader)
             for y in yamls:
                 return y
@@ -201,20 +201,20 @@ def commentfiles_for (item: Path):
 # item, or simply hosting_root if set to non-empty on the command line 
 # - item: relative path to item
 def item_root (item: Path) -> str: 
-    if hosting_root != "":
+    if hosting_root != '':
         return hosting_root
     else:
         item = str(item)
-        log(5,"Computing root for " + item)
-        res = ""
+        log(5,'Computing root for ' + item)
+        res = ''
         for c in item:
             if c == '/':
-                res = res + "../"
-        # remove trailing backslash
+                res = res + '../'
+        # remove trailing backslash (does nothing when res == '')
         res = res[:-1]
-        if res == "":
-            res = "."
-        log(5,"Computed root " + res)    
+        if res == '':
+            res = '.'
+        log(5,'Computed root ' + res)    
         return res
 
 # Determine the link pointing to the item on the hosting site
@@ -246,10 +246,10 @@ def get_template(name: Path):
 def replace_when_changed (current: Path, update: Path):
     if (not current.exists()) or \
        (not filecmp.cmp(current,update,shallow=False)): 
-        log(4,"File changed "+ str(current))
+        log(4,'File changed ' + str(current))
         update.rename(current)
     else:
-        log(4,"File not changed "+ str(current))
+        log(4,'File not changed ' + str(current))
         update.unlink() # remove file
 
 # Parse a date if it is a string, return unchanced otherwise.
@@ -268,7 +268,7 @@ def parse_date (s) -> datetime.date:
 def normalize_date(date: datetime.date) -> str:
     # tmp = parse_date(date) # this should not be necessary
     # we do NOT want zero-padding on days
-    return date.strftime("%B ") + str(date.day) + ", " + str(date.year)
+    return date.strftime("%B ") + str(date.day) + ', ' + str(date.year)
 
 # ---
 # PROCESS POSTS
@@ -314,7 +314,7 @@ def process_post_metadata(post: Path):
         date = parse_date(tmp)
     else:
         date = datetime.date.today()
-        warning("Date expected but not found in " + str(post) + ". Using today.")
+        warning('Date expected but not found in ' + str(post) + '. Using today.')
     post_metadata[post_relpath] = (date,title)
 
 # Regular expression matching a path for a post (i.e. one that starts with a
@@ -325,7 +325,7 @@ post_re = re.compile('[0-9][0-9][0-9][0-9].*')
 # - item: relative path to item to determine type of
 def is_post(item: Path) -> bool:
     log(4,'Determining whether this is a post or a page: ' + str(item))
-    ret = (post_re.match(str(item)) != None) and (item.suffix == ".md")
+    ret = (post_re.match(str(item)) != None) and (item.suffix == '.md')
     log(4,'Is post is ' + str(ret))
     return ret 
 
@@ -334,8 +334,8 @@ def is_post(item: Path) -> bool:
 # the following global variables:
 # items_with_cat, items_with_tag, post_metadata and all_posts
 def process_posts ():
-    log(0,"Processing posts")
-    # Find all posts (they have suffix .md)
+    log(0,'Processing posts')
+    # Find all posts (they have suffix .md) and process their metadata
     for item in src_files_with_suffix('.md'):
         if is_post(item_relpath(item)):
             process_post_metadata(item)
@@ -353,7 +353,7 @@ def process_posts ():
 # number of matches so far
 eq_match_count = 0
 # folder containing the currently processed file
-basefolder = ""
+basefolder = ''
 # dictonary of processed equations; reset for every file
 equations = {}
 
@@ -368,20 +368,20 @@ def process_eq(latex_expr):
     global eq_match_count
     eq_match_count = eq_match_count + 1
     # create the SVG output name
-    svg_output_name = "index." + str(eq_match_count) + '.svg'
+    svg_output_name = 'index.' + str(eq_match_count) + '.svg'
     svg_full_path = basefolder / svg_output_name
     log(4,'Storing equation in ' + str(svg_full_path))
     # creata a temorary direcotry to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_tex = tmpdir + "/htsv.tex"    
-        tmp_pdf = tmpdir + "/htsv.pdf"
+        tmp_tex = tmpdir + '/htsv.tex'    
+        tmp_pdf = tmpdir + '/htsv.pdf'
         # read the latex template and store it as a string in t
         eq_template = get_template('ssst-eq.tex')
         with open(eq_template,'r') as f:
             latex_template = f.read()
         # insert latex_expr at $$ in the template
-        s = latex_template.split("$$")
-        latex_document = s[0] + "$"+ latex_expr + "$" + s[1]
+        s = latex_template.split('$$')
+        latex_document = s[0] + '$'+ latex_expr + '$' + s[1]
         # write the result to a tex file in the temporary directory
         with open(tmp_tex,'w') as w:
             w.write(latex_document)
@@ -522,7 +522,7 @@ def make_item(item,tmpdir,item_template):
         gladtex_str = '' 
     command = 'pandoc ' + gladtex_str + '-s -f markdown -t html --template=' + \
         str(item_template) + \
-        ' -A '+ tmpdir + "/comments.html" + \
+        ' -A '+ tmpdir + '/comments.html' + \
         ' --metadata reply=' + reply_path + \
         ' --metadata root=' + str(item_root(item)) + \
         extra_metadata_str + \
@@ -557,7 +557,7 @@ def make_page(page,tmpdir):
 # then  <path>.2
 def fold_comments(path):
     log(4,'Folding ' + str(path)) 
-    folded = ""
+    folded = ''
     i = 1
     while True:
         prefix = path + '.' + str(i)
@@ -585,7 +585,7 @@ def make_comments(item,tmpdir):
     # first convert all .mdc files in src_root to .html files in tmpdir
     for c in commentfiles:
         # filename to store html converted comment in (in tmpdir)
-        outf = tmpdir + "/" + str(c.name)[:-3] + "html"
+        outf = tmpdir + '/' + str(c.name)[:-3] + 'html'
         # blog-post path and comment depth indicator for reply links
         # strip the source prefix in front and mdc from the back
         reply_path = str(item_relpath(c))
@@ -602,7 +602,7 @@ def make_comments(item,tmpdir):
     comments = fold_comments(tmpdir + '/comment')
     log(5,comments)
     # and store the comments in commetns.html in the tmpdir
-    with open(tmpdir + "/comments.html","w") as f:
+    with open(tmpdir + '/comments.html','w') as f:
         f.write(comments)
 
 # ---
@@ -626,7 +626,6 @@ def dump(out_name,type,label,filelist):
     # (using the fact that the path encodes the file date)
     filelist.sort()
     os.makedirs(src_folder_of(out_name),exist_ok=True)
-#    with open(out_name,"w") as outf:
     with DelayedTextfile(src_path_of(out_name)) as outf:
         outf.write("---\n")
         outf.write("title: '" + label.capitalize() + "'\n")
@@ -642,11 +641,11 @@ def dump(out_name,type,label,filelist):
 def dump_cats_and_tags():
     log(0,'Dumping category and tag files.')
     for cat in items_with_cat:
-        dump(Path("category/" + cat + "/index.sst"),
-             "Category",cat,items_with_cat[cat])
+        dump(Path('category/' + cat + '/index.sst'),
+             'Category',cat,items_with_cat[cat])
     for tag in items_with_tag:
-        dump(Path("tag/" + tag + "/index.sst"),
-             "Tag",tag,items_with_tag[tag])
+        dump(Path('tag/' + tag + '/index.sst'),
+             'Tag',tag,items_with_tag[tag])
 
 # Create archive files containing all posts for a particular month in 
 # ./yyyy/mm/index.sst in the src_root (SOURCE!) tree;
@@ -750,7 +749,7 @@ def worklist_for (suffix: str):
 def worklist ():
     log(0,'Determining files to process...')
     # determine all .md files that need to be made
-    list = worklist_for(".md")
+    list = worklist_for('.md')
     extended_list = list.copy()
     # insert any "neighbours" of posts in the worklist as well, to ensure
     # that their next and prev links are updated
@@ -762,7 +761,7 @@ def worklist ():
         if (next != '') and (next not in extended_list):
             extended_list.append(next)
     # add all *.sst files that need to be made
-    final_list = extended_list + worklist_for(".sst")
+    final_list = extended_list + worklist_for('.sst')
     log(0,str(len(final_list)) + ' files to process found')
     return final_list
 
@@ -781,7 +780,7 @@ def copy_media(item: Path):
     src_folder = src_folder_of(item)
     dest_folder = dest_folder_of(item)
     for t in media_types:
-        for f in src_folder.glob("*." + t):
+        for f in src_folder.glob('*.' + t):
             log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
             shutil.copy2(f,dest_folder) # keep metadata
 
@@ -884,11 +883,11 @@ def make_home():
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
         # string keeping track of which temporary summary file to include later
-        pandoc_append_str = ""
+        pandoc_append_str = ''
         for post in recent_posts:
             # create a temporary html file summarizing this entry
             count = count + 1
-            summary_name = tmpdir + "/summary." + str(count) + ".html"
+            summary_name = tmpdir + '/summary.' + str(count) + '.html'
             summarize_post(post,summary_name)
             # and add this to the files to append when making the home page
             pandoc_append_str = pandoc_append_str + ' -A ' + summary_name 
@@ -916,26 +915,26 @@ def make_home():
 
 # Set up arguments parsing
 parser = argparse.ArgumentParser()
-parser.add_argument("-s", "--source", default=src_root,
-                    help="Path to the root of the source files tree")
-parser.add_argument("-d", "--destination", default=dest_root,
-                    help="Path to the root of the destination files tree")
-parser.add_argument("-r", "--root", default=hosting_root,
-                    help="Root where the site is hosted. If omitted, the root is found using relative addressing, making the site relocateable")
-parser.add_argument("-t", "--templates", default=templates,
-                    help="Path to directory with templates")
-parser.add_argument("-v", "--verbosity", default=loglevel,
-                    help="Verbosity (-1, the default, is silent)")
-parser.add_argument("-l", "--logfile", default="ssst.log",
-                    help="Name of file to store all log messages in")
-parser.add_argument("-f", "--force", default = False, action="store_true",
-                    help="(Re)make everything")
-parser.add_argument("-g", "--gladtex", default = False, action="store_true",
-                    help="Use pandoc --gladtex to process LaTeX equations.")
-parser.add_argument("-x", "--strict", default = False, action="store_true",
-                    help="Abort after warning")
-parser.add_argument("-z", "--summarylength", default=summary_length,
-                    help="Number of lines in post (including YAML header) to include in a summary")
+parser.add_argument('-s', '--source', default=src_root,
+                    help='Path to the root of the source files tree')
+parser.add_argument('-d', '--destination', default=dest_root,
+                    help='Path to the root of the destination files tree')
+parser.add_argument('-r', '--root', default=hosting_root,
+                    help='Root where the site is hosted. If omitted, the root is found using relative addressing, making the site relocateable')
+parser.add_argument('-t', '--templates', default=templates,
+                    help='Path to directory with templates')
+parser.add_argument('-v', '--verbosity', default=loglevel,
+                    help='Verbosity (-1, the default, is silent)')
+parser.add_argument('-l', '--logfile', default='ssst.log',
+                    help='Name of file to store all log messages in')
+parser.add_argument('-f', '--force', default = False, action='store_true',
+                    help='(Re)make everything')
+parser.add_argument('-g', '--gladtex', default = False, action='store_true',
+                    help='Use pandoc --gladtex to process LaTeX equations.')
+parser.add_argument('-x', '--strict', default = False, action='store_true',
+                    help='Abort after warning')
+parser.add_argument('-z', '--summarylength', default=summary_length,
+                    help='Number of lines in post (including YAML header) to include in a summary')
 
 args = parser.parse_args()
 
@@ -958,8 +957,8 @@ logname = args.logfile
 summary_length = int(args.summarylength)
 
 # open logfile
-if logname != "":
-    logfile = open(logname,"w")
+if logname != '':
+    logfile = open(logname,'w')
 
 # first collect all metadate (like tags and categories, but also title and date
 # for all blog entries in the source tree. This initializes
