@@ -672,6 +672,7 @@ def dump_cats_and_tags():
 # through the make routine
 def dump_archives():
     log(0,'Dumping archives.')
+    last_year_archived = 0
     # dictionary with DelayedTextFile descriptors, indexed by archivepath
     archive_paths = {}  
     # create the root archive file (as a DelayedTextfile
@@ -689,10 +690,16 @@ def dump_archives():
             # construct the full and relative path for the archive this post
             # should appear in
             date = post_metadata[post][0]
+            archive_year = date.year
             monthyear = date.strftime("%B %Y")
             archive_relative_path = date.strftime("%Y/%m/index.sst")
             archive_path = src_path_of(archive_relative_path)
             if archive_path not in archive_paths:
+                # write a header every time the year changes
+                # (this assumes all_posts is sorted)
+                if last_year_archived != archive_year:
+                    last_year_archived = archive_year
+                    archivef.write('\n## ' + str(archive_year) + '\n')
                 # write a link to this new archive to the main archive file
                 archivef.write('- [' + monthyear +'](' + \
                                item_url(Path(archive_relative_path),Path('archives.sst')) + ')\n' )
