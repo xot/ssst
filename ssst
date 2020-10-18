@@ -132,7 +132,11 @@ def warning(msg: str):
 # - level: the log-level for this message
 # - msg: the log message
 def log (level: int, msg: str):
-    m = '-' * level + ' ' + str(msg) + '\n'
+    if level == 0:
+        m = '# '
+    else:
+        m = '-' * level + ' '
+    m = m + str(msg) + '\n'
     if (level <= loglevel):
         sys.stdout.write(m)
     if logfile != None:
@@ -294,16 +298,22 @@ def process_post_metadata(post: Path):
         if type(cats) is str:
             cats = [ cats ]
         for cat in cats:
+            # make sure categoreis are stored in all lowercase
+            # (e.g. ios and iOS would otherwise be considered different tags
+            # but written to the same external tag file if the filesystem
+            # is case-insensitive; one overwrting the other!!!
+            cat = cat.lower()
             if cat not in items_with_cat:
                 items_with_cat[cat] = []
             items_with_cat[cat].append(post_relpath)
     if 'keywords' in yaml:
         tags = yaml['keywords']
         log(3,'Tags: ' + str(tags))
-        # careful: categories may be a single string
+        # careful: tags may be a single string
         if type(tags) is str:
             tags = [ tags ]
         for tag in tags:
+            tag = tag.lower()
             if tag not in items_with_tag:
                 items_with_tag[tag] = []
             items_with_tag[tag].append(post_relpath)
@@ -633,6 +643,7 @@ def dump(out_name,type,label,filelist):
     # (using the fact that the path encodes the file date)
     filelist.sort()
     os.makedirs(src_folder_of(out_name),exist_ok=True)
+    log(3,'Dumping to ' + str(out_name))
     with DelayedTextfile(src_path_of(out_name)) as outf:
         outf.write("---\n")
         outf.write("title: '" + label.capitalize() + "'\n")
@@ -726,13 +737,15 @@ def is_workitem(item: Path) -> bool:
     src_time = os.path.getmtime(src)
     dest_time = os.path.getmtime(dest)
     if (dest_time <= src_time - grace_period) :
+        log(4,'Destination older than source.')
         return True
     # check whether destination is older than any comment in the source
     comments = commentfiles_for(item)
     for comment in comments:
-        log(5,'Comment found: ' + str(comment))
+        log(4,'Comment found: ' + str(comment))
         comment_time = os.path.getmtime(comment)
         if (dest_time <= comment_time - grace_period):
+            log(4,'Destination older than comment in source.')
             return True
     return False
 
