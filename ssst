@@ -573,7 +573,10 @@ def make_post(post,tmpdir):
 # in any comments
 def make_page(page,tmpdir):
     log(2,'Processing page')
-    page_template = item_template(page,'ssst-page.html')
+    if str(page) == 'archives.sst':
+        page_template = get_template('ssst-archives.html')
+    else:
+        page_template = item_template(page,'ssst-page.html')
     make_item(page,tmpdir,page_template)
 
 # ---
@@ -697,7 +700,7 @@ def dump_archives():
     with DelayedTextfile(archive) as archivef:        
         archivef.write("---\n")
         archivef.write("title: 'Archives'\n")
-        archivef.write("template: 'ssst-archives.html'\n")
+#        archivef.write("template: 'ssst-archives.html'\n")
         archivef.write("---\n")
         # process all posts and put them in the appropriate archive
         # this creates another DelayedTextfile for every new archive
