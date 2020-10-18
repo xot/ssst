@@ -1,0 +1,37 @@
+/* SSST CSS
+ *
+ * style sheet for pages
+ *
+ * HTML structure of a page:
+ *
+ * <html>
+ * <head>...</head>
+ * <body>
+ *   <div id="canvas">
+ *     <div id="header">
+ *       <div id="menu">
+ *       </div><!--menu-->
+ *     </div><!--header-->
+ *     <div id="page">
+ *       <div id="pageheader">
+ *          <h1 id="title"></h1>
+ *          <div id="subtitle"></div>
+ *          <div id="author"></div>
+ *       </div><!--pageheader-->
+ *       <div id="pagecontent">
+ *         body of the page
+ *       </div><!--pagecontent-->
+ *     </div><!--page-->
+ *     <div id="footer">
+ *       <a id="search"></a>
+ *       <a id="archives"></a>
+ *       <span id="feed"></span>
+ *       <a id="subscribe"></a>
+ *   </div> 
+ * </div><!--footer-->
+ *   </div><!--canvas-->
+ * </body>
+ * </html>
+ */
+
+@import "ssst.css" ;

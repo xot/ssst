@@ -90,7 +90,7 @@ items_with_tag = {}
 # (filled by process_posts -> process_post_metadata) 
 items_with_cat = {}
 
-# Dictionary of all posts metadata (as tuples (date,title)) indexed
+# Dictionary of all posts metadata (as tuples (date,title,template)) indexed
 # by the relative pathname for the post
 # (filled by process_posts -> process_post_metadata) 
 post_metadata = {}
@@ -328,7 +328,11 @@ def process_post_metadata(post: Path):
     else:
         date = datetime.date.today()
         warning('Date expected but not found in ' + str(post) + '. Using today.')
-    post_metadata[post_relpath] = (date,title)
+    if 'template' in yaml:
+        template = yaml['template']
+    else:
+        template = ''
+    post_metadata[post_relpath] = (date,title,template)
 
 # Regular expression matching a path for a post (i.e. one that starts with a
 # four digit year)
@@ -353,7 +357,7 @@ def process_posts ():
     # sort all posts by date and store the list of relative paths in all_posts
     for post in post_metadata:
         all_posts.append(post)
-    all_posts.sort(key=lambda entry: post_metadata[entry])
+    all_posts.sort(key=lambda entry: post_metadata[entry][0])
     
         
 
@@ -548,18 +552,28 @@ def make_item(item,tmpdir,item_template):
     subprocess.run(command,shell=True,capture_output=False)
     replace_when_changed(dest,dest_tmp)    
 
+# Return the template to use to process item: default if none specified
+# in the YAML header for item
+def item_template(item,default):
+    if item in post_metadata:
+        template = post_metadata[post][2]
+        if template != '':
+            return get_template(template)
+    return get_template(default)
+    
+
 # Make the html post from the md source specified by item, merging
 # in any comments
 def make_post(post,tmpdir):
     log(2,'Processing post')
-    post_template = get_template('ssst-post.html')
+    post_template = item_template(post,'ssst-post.html')
     make_item(post,tmpdir,post_template)
     
 # Make the html post from the md source specified by item, merging
 # in any comments
 def make_page(page,tmpdir):
     log(2,'Processing page')
-    page_template = get_template('ssst-page.html')
+    page_template = item_template(page,'ssst-page.html')
     make_item(page,tmpdir,page_template)
 
 # ---
@@ -629,7 +643,7 @@ def make_comments(item,tmpdir):
 # Write a link (entry_url) describing an entry (using its title and date)
 # to the output stream outf
 def dump_entry(entry,outname,outf):
-    (date,title) = post_metadata[entry]
+    (date,title,template) = post_metadata[entry]
     datestr = normalize_date(date)
     outf.write('- [' + title + '](' + item_url(entry,outname) + \
                ') (' + datestr + ')\n')    
@@ -683,6 +697,7 @@ def dump_archives():
     with DelayedTextfile(archive) as archivef:        
         archivef.write("---\n")
         archivef.write("title: 'Archives'\n")
+        archivef.write("template: 'ssst-archives.html'\n")
         archivef.write("---\n")
         # process all posts and put them in the appropriate archive
         # this creates another DelayedTextfile for every new archive
