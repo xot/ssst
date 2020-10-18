@@ -49,6 +49,24 @@ optional arguments:
                         include in a summary
 ```
 
+The `ssst-add` utility adds a markdown post to its appropriate place in the source tree (using the current date or the date in the post header), and does some consistency checks.
+
+```
+usage: ssst-add [-h] [-s SOURCE] [-v VERBOSITY] [-x] post
+
+positional arguments:
+  post                  Filename of post to add
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -s SOURCE, --source SOURCE
+                        Path to the root of the source files tree
+  -v VERBOSITY, --verbosity VERBOSITY
+                        Verbosity (-1, the default, is silent)
+  -x, --strict          Abort after warning
+```
+
+
 # Input
 
 SSST processes markdown files containing posts or pages. SSST expects these files to start with a YAML block containing at least the post/page title (using the `title:` key). Posts also have a date (using the `date:` key). Pages do not.
