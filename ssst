@@ -166,6 +166,11 @@ def src_folder_of(item: Path) -> Path:
 def src_path_of(item: Path) -> Path:
     return src_root / item
 
+# Return the relative path (wrt src_root) for the full path leading to an item
+# -item: full path in source tree to item
+def item_relpath(item: Path) -> Path:
+    return item.relative_to(src_root)
+
 # Return the full destination folder to store the result for item
 # - item: relative path to the item
 def dest_folder_of(item: Path) -> Path:
@@ -177,6 +182,13 @@ def dest_folder_of(item: Path) -> Path:
 def dest_of (item: Path) -> Path:
     dest = dest_root / item
     return dest.with_suffix('.html')
+
+# Return an iterator that iterates over all files in the tree rooted at
+# src_root with the specified suffix
+# - suffix: suffix of files to return, including "."
+def src_files_with_suffix(suffix: str):
+    return Path(src_root).glob('**/*' + suffix)
+
 
 # Determine list of Paths containing the comments (empty if none) for the item
 # I.e. all files matching <src_root> / <parent_folder> / *.mdc
@@ -272,7 +284,7 @@ def process_post_metadata(post: Path):
     global post_metadata
     log(2,'- Processing categories and tags for ' + str(post))
     yaml = get_yaml_dict(post)
-    post_relpath = post.relative_to(src_root)
+    post_relpath = item_relpath(post)
     if 'categories' in yaml:
         cats = yaml['categories']
         log(3,'Categories: ' + str(cats))
@@ -321,12 +333,11 @@ def is_post(item: Path) -> bool:
 # title and date for all blog entries) in the source tree. This initializes
 # the following global variables:
 # items_with_cat, items_with_tag, post_metadata and all_posts
-# - src_root: root of the source tree containing all posts
-def process_posts (src_root: Path):
+def process_posts ():
     log(0,"Processing posts")
-    # Find all posts (they have extension .md)
-    for item in Path(src_root).glob('**/*.md'):
-        if is_post(item.relative_to(src_root)):
+    # Find all posts (they have suffix .md)
+    for item in src_files_with_suffix('.md'):
+        if is_post(item_relpath(item)):
             process_post_metadata(item)
     # sort all posts by date and store the list of relative paths in all_posts
     for post in post_metadata:
@@ -577,7 +588,7 @@ def make_comments(item,tmpdir):
         outf = tmpdir + "/" + str(c.name)[:-3] + "html"
         # blog-post path and comment depth indicator for reply links
         # strip the source prefix in front and mdc from the back
-        reply_path = str(c.relative_to(src_root))
+        reply_path = str(item_relpath(c))
         reply_path = reply_path[:-3]
         log(3,'Making comment HTML ' + outf)
         command = 'pandoc -f markdown'+ \
@@ -626,7 +637,7 @@ def dump(out_name,type,label,filelist):
                 
 # Dump the category and tag dictionaries to the necessary pages in the
 # ./category/.. and ./tag/... directories in the src_root (SOURCE!) tree;
-# These are markdown files (with extension .sst) that will subsequently be
+# These are markdown files (with suffix .sst) that will subsequently be
 # converted to html through the make routine
 def dump_cats_and_tags():
     log(0,'Dumping category and tag files.')
@@ -714,20 +725,18 @@ def is_workitem(item: Path) -> bool:
     return False
 
 
-# match all files with extension in the tree rooted at src_root and return a
+# match all files with suffix in the tree rooted at src_root and return a
 # list of all files that need to be (re)made
-# - src_root: root of the source tree
-# - dest_root: root of the destination tree
-# - extension: extension of files to consider (.md or .sst)
+# - suffix: suffix of files to consider (.md or .sst)
 # - returns: a list of paths to items that need to be made
-def worklist_for (src_root: Path, dest_root: Path, extension: str):
+def worklist_for (suffix: str):
     list = []
-    # traverse all files with extension in the subtree rooted at src
+    # traverse all files with suffix in the subtree rooted at src
     # (This returns a 'list' of Paths (not strings))
-    for src in Path(src_root).glob('**/*' + extension):
+    for src in src_files_with_suffix(suffix):
         log(2,'Considering: ' + str(src))
         # strip the src_root
-        item = src.relative_to(src_root)
+        item = item_relpath(src)
         # add the item when -f given, or when a workitem
         if force or is_workitem(item):
             log(2,'Adding ' + str(src))
@@ -737,13 +746,11 @@ def worklist_for (src_root: Path, dest_root: Path, extension: str):
     return list
 
 # Determine posts, pages and generated pages that need to be (re)made
-# - src_root: root of the source tree
-# - dest_root: root of the destination tree
 # - returns: a list of paths to items that need to be made
-def worklist (src_root: Path, dest_root: Path):
+def worklist ():
     log(0,'Determining files to process...')
     # determine all .md files that need to be made
-    list = worklist_for(src_root,dest_root,".md")
+    list = worklist_for(".md")
     extended_list = list.copy()
     # insert any "neighbours" of posts in the worklist as well, to ensure
     # that their next and prev links are updated
@@ -755,7 +762,7 @@ def worklist (src_root: Path, dest_root: Path):
         if (next != '') and (next not in extended_list):
             extended_list.append(next)
     # add all *.sst files that need to be made
-    final_list = extended_list + worklist_for(src_root,dest_root,".sst")
+    final_list = extended_list + worklist_for(".sst")
     log(0,str(len(final_list)) + ' files to process found')
     return final_list
 
@@ -763,7 +770,7 @@ def worklist (src_root: Path, dest_root: Path):
 # MAKE
 # ---
 
-# Extension of media files that will automatically be copied from the source
+# Suffix of media files that will automatically be copied from the source
 # folder to the destination folder
 media_types = ['jpg','gif','pdf','png']
 
@@ -786,9 +793,9 @@ def clean_folder(folder: Path):
         if not f.is_dir():
             os.remove(f)
 
-# Make the output (in dest_root) for the item (stored src_root)
+# Make the output (in dest_root) for the item (from src_root)
 def make(item: Path):
-    log(1,'Processing ' + str(src_root / item))
+    log(1,'Processing ' + str(src_path_of(item)))
     # Clean the destination folder
     dest_folder = dest_folder_of(item)
     if dest_folder.exists():
@@ -809,7 +816,8 @@ def make(item: Path):
 
 # Regular expression matching img src's and href's that point to a local
 # media object (i.e. paths that start with './' and then do not contain
-# further slashes).
+# further slashes). A match returns two groups: 1) the src/href prefix and
+# 2) the path without the leading "."
 # (FRAGILE CODE: OTHER ITEMS MAY ALSO START WITH ./ )
 localpath_re = re.compile(r'(src="|href=")\.(/[^/ ]+)"')
 
@@ -828,9 +836,9 @@ def substitute_localpath(matchobj) -> str:
 
 
 # Summarasise a post and write the summary to a file. Summary is generated using
-# pandoc with <templates>/ssst-summary-entry.html as template
-# (Note: make sure that this template does NOT generate a standalone HTML
-# document; it is included in another page).
+# pandoc with <templates>/ssst-summary-entry.html as template. (Note: make
+# sure that this template does NOT generate a standalone HTML document; it is
+# included in another page).
 # - post: post to summarise
 # - fname: name of file to store summery in
 def summarize_post(post: Path, fname: str):
@@ -959,7 +967,7 @@ if logname != "":
 # - items_with_tag
 # - post_metadata
 # - all_posts (essentially the tags of post_metadata, but sorted by date)
-process_posts(src_root)
+process_posts()
 
 # dump the category and tag files in ./category/<categorystring>/index.sst and
 # ./tag/<tagstring>/index.sst
@@ -969,7 +977,7 @@ dump_cats_and_tags()
 dump_archives()
 
 # make all html files
-for item in worklist(src_root,dest_root):
+for item in worklist():
     make(item)
 
 # create the home page containing a summary of the most recent posts
