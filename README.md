@@ -24,7 +24,7 @@ SSST processes all files in a source tree rooted at `SOURCE`, and writes its out
 
 ```
 usage: ssst [-h] [-s SOURCE] [-d DESTINATION] [-r ROOT] [-t TEMPLATES]
-            [-v VERBOSITY] [-l LOGFILE] [-f] [-g] [-x] [-z SUMMARYLENGTH]
+            [-v VERBOSITY] [-l LOGFILE] [-f] [-g] [-k] [-p] [-z SUMMARYLENGTH]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -34,7 +34,7 @@ optional arguments:
                         Path to the root of the destination files tree
   -r ROOT, --root ROOT  Root where the site is hosted. If omitted, the root is
                         found using relative addressing, making the site
-                        relocateable
+                        relocatable
   -t TEMPLATES, --templates TEMPLATES
                         Path to directory with templates
   -v VERBOSITY, --verbosity VERBOSITY
@@ -43,7 +43,8 @@ optional arguments:
                         Name of file to store all log messages in
   -f, --force           (Re)make everything
   -g, --gladtex         Use pandoc --gladtex to process LaTeX equations.
-  -x, --strict          Abort after warning
+  -k, --keepsimple      Do not process simple LaTex equations
+  -p, --pedantic        Abort after warning
   -z SUMMARYLENGTH, --summarylength SUMMARYLENGTH
                         Number of lines in post (including YAML header) to
                         include in a summary
@@ -52,7 +53,7 @@ optional arguments:
 The `ssst-add` utility adds a markdown post to its appropriate place in the source tree (using the current date or the date in the post header), and does some consistency checks.
 
 ```
-usage: ssst-add [-h] [-s SOURCE] [-v VERBOSITY] [-x] post
+usage: ssst-add [-h] [-s SOURCE] [-v VERBOSITY] [-p] post
 
 positional arguments:
   post                  Filename of post to add
@@ -63,7 +64,7 @@ optional arguments:
                         Path to the root of the source files tree
   -v VERBOSITY, --verbosity VERBOSITY
                         Verbosity (-1, the default, is silent)
-  -x, --strict          Abort after warning
+  -p, --pedantic        Abort after warning
 ```
 
 

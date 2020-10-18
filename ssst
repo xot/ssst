@@ -58,7 +58,7 @@ src_root = Path('./src')
 dest_root = Path('./public')
 
 # Root where the site is hosted
-# (relative adressing, making the whole site relocateable, is the default)
+# (relative adressing, making the whole site relocatable, is the default)
 hosting_root = ''
 
 # Path to directory with templates
@@ -74,7 +74,10 @@ force = False
 use_gladtex = False
 
 # Abort after warning
-strict = False 
+pedantic = False 
+
+# Do not process simple LaTeX equations (pass them through in italics)
+keep_simple_eqs = False
 
 # Lenght of summaries (including YAML header)
 summary_length = 20
@@ -113,14 +116,14 @@ def error(msg: str):
     sys.exit (1)
 
 # Output the warning message, and write it to the log file if it was specified.
-# Exit when strict processing was specified.
+# Exit when pedantic processing was specified.
 # - msg: the warning message
 def warning(msg: str):
     m = "ssst: warning: %s\n" % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
-    if strict:
+    if pedantic:
         sys.exit (1)
 
 # Output a log message when its level is lower than the specifief verbosity
@@ -129,7 +132,7 @@ def warning(msg: str):
 # - level: the log-level for this message
 # - msg: the log message
 def log (level: int, msg: str):
-    m = str(msg) + '\n'
+    m = '-' * level + ' ' + str(msg) + '\n'
     if (level <= loglevel):
         sys.stdout.write(m)
     if logfile != None:
@@ -246,10 +249,10 @@ def get_template(name: Path):
 def replace_when_changed (current: Path, update: Path):
     if (not current.exists()) or \
        (not filecmp.cmp(current,update,shallow=False)): 
-        log(4,'File changed ' + str(current))
+        log(5,'File changed ' + str(current))
         update.rename(current)
     else:
-        log(4,'File not changed ' + str(current))
+        log(5,'File not changed ' + str(current))
         update.unlink() # remove file
 
 # Parse a date if it is a string, return unchanced otherwise.
@@ -266,7 +269,6 @@ def parse_date (s) -> datetime.date:
 # Convert a date to something like "April 03, 2013"
 # - date: datetime object to be converted to a string
 def normalize_date(date: datetime.date) -> str:
-    # tmp = parse_date(date) # this should not be necessary
     # we do NOT want zero-padding on days
     return date.strftime("%B ") + str(date.day) + ', ' + str(date.year)
 
@@ -277,12 +279,12 @@ def normalize_date(date: datetime.date) -> str:
 # Process post metadata and store it in post_metadata[].
 # Determine the categories and the tags assiociated with a post 
 # and add its  pathname to the necessary categories and tag dictionaries
-# - post : pathname to the post to process
+# - post : full pathname to the post to process
 def process_post_metadata(post: Path):
     global items_with_tag
     global items_with_cat
     global post_metadata
-    log(2,'- Processing categories and tags for ' + str(post))
+    log(2,'Processing categories and tags for ' + str(post))
     yaml = get_yaml_dict(post)
     post_relpath = item_relpath(post)
     if 'categories' in yaml:
@@ -309,6 +311,7 @@ def process_post_metadata(post: Path):
         title = yaml['title']
     else:
         title = ''
+        warning('Title expected but not found in ' + str(post) + '. Using empty title.')
     if 'date' in yaml: 
         tmp = yaml['date']
         date = parse_date(tmp)
@@ -324,10 +327,8 @@ post_re = re.compile('[0-9][0-9][0-9][0-9].*')
 # Determine whether the item is a post (or a page)
 # - item: relative path to item to determine type of
 def is_post(item: Path) -> bool:
-    log(4,'Determining whether this is a post or a page: ' + str(item))
-    ret = (post_re.match(str(item)) != None) and (item.suffix == '.md')
-    log(4,'Is post is ' + str(ret))
-    return ret 
+    return (post_re.match(str(item)) != None) and (item.suffix == '.md')
+
 
 # Collect all metadata about all posts (like tags and categories, but also
 # title and date for all blog entries) in the source tree. This initializes
@@ -407,6 +408,9 @@ def sanitize_eq (expr):
     log(5,'Sanitized '+ expr + ' to ' + ret)
     return ret
 
+# Match a simple expression, that can be passed without processing
+simple_expr_re =  re.compile(r'([A-Za-z0-9])+')
+
 # Process to currently matched latex equation to create an SVG for it
 # return the replacement text for the currently matched latex equation
 # (ie an <img> tag pointing the SVG file generated for it)
@@ -420,6 +424,9 @@ def substitute_eq (matchobj):
         # sanitize expressions
         latex_expr = sanitize_eq(match)
         log(4,'Processing equation ' + latex_expr)
+        # do not process simple LaTex equations, when so instructed
+        if keep_simple_eqs and simple_expr_re.fullmatch(latex_expr):
+            return '<em>' + latex_expr + '</em>'
         if latex_expr in equations:
             log(5,'Already made!')
             svg_output_name = equations[latex_expr]
@@ -449,7 +456,7 @@ def process_equations (item):
     global eq_match_count
     global basefolder
     global equations
-    log(2,'- Processing equations')
+    log(2,'Processing equations')
     eq_match_count = 0
     equations = {}
     fname = dest_of(item)
@@ -534,14 +541,14 @@ def make_item(item,tmpdir,item_template):
 # Make the html post from the md source specified by item, merging
 # in any comments
 def make_post(post,tmpdir):
-    log(2,'- Processing post')
+    log(2,'Processing post')
     post_template = get_template('ssst-post.html')
     make_item(post,tmpdir,post_template)
     
 # Make the html post from the md source specified by item, merging
 # in any comments
 def make_page(page,tmpdir):
-    log(2,'- Processing page')
+    log(2,'Processing page')
     page_template = get_template('ssst-page.html')
     make_item(page,tmpdir,page_template)
 
@@ -579,7 +586,7 @@ def fold_comments(path):
 # Stores the result in tmpdir/comments.html for further processing
 # by make post (this file is empty if there are no comments)
 def make_comments(item,tmpdir):
-    log(2,'- Processing comments')
+    log(2,'Processing comments')
     commentfiles = commentfiles_for(item)
     comment_template = get_template('ssst-comment.html')
     # first convert all .mdc files in src_root to .html files in tmpdir
@@ -653,20 +660,23 @@ def dump_cats_and_tags():
 # These are markdown files that will subsequently be converted to html
 # through the make routine
 def dump_archives():
-    global archive_selector
     log(0,'Dumping archives.')
     # dictionary with DelayedTextFile descriptors, indexed by archivepath
     archive_paths = {}  
-    # create the root archive file
-#    with open(src_root + '/archives.sst','w') as archivef:
+    # create the root archive file (as a DelayedTextfile
     archive = src_path_of('archives.sst')
-    log(3,'- Writing all archives to ' + str(archive))
+    log(3,'Writing all archives to ' + str(archive))
+    # DelayedTextfile will be written to disk when with closes
+    # (and contents really chagned)
     with DelayedTextfile(archive) as archivef:        
         archivef.write("---\n")
         archivef.write("title: 'Archives'\n")
         archivef.write("---\n")
         # process all posts and put them in the appropriate archive
+        # this creates another DelayedTextfile for every new archive
         for post in all_posts:
+            # construct the full and relative path for the archive this post
+            # should appear in
             date = post_metadata[post][0]
             monthyear = date.strftime("%B %Y")
             archive_relative_path = date.strftime("%Y/%m/index.sst")
@@ -675,15 +685,15 @@ def dump_archives():
                 # write a link to this new archive to the main archive file
                 archivef.write('- [' + monthyear +'](' + \
                                item_url(Path(archive_relative_path),Path('archives.sst')) + ')\n' )
-                # create a new delayed file for this monthly archvie
-                log(3,'- Creating new monthly archive ' + str(archive_path))
+                # create a new delayed file for this monthly archive
+                log(3,'Creating new monthly archive ' + str(archive_path))
                 outf = DelayedTextfile(archive_path)
                 archive_paths[archive_path] = outf
-                # create a header for a new archive
+                # write the header for the new archive
                 outf.write("---\n")
                 outf.write("title: 'Archive " + monthyear + "'\n")        
                 outf.write("---\n")
-            # append the entry
+            # append the entry to the monthly archive
             outf = archive_paths[archive_path]
             dump_entry(post,archive_relative_path,outf)
     # close all archive files
@@ -705,16 +715,19 @@ grace_period = 60
 # - item: path to item
 # - returns: whether item is a workitem or not
 def is_workitem(item: Path) -> bool:
-    src = src_path_of(item)
-    src_time = os.path.getmtime(src)
+    # check whether destination exists
     dest = dest_of(item)
     log(4,'Destination should be ' + str(dest))
     if not dest.exists():
         return True
-    log(4,'Destination exists.')    
+    log(4,'Destination exists.')
+    # check whetehr destination is older than source
+    src = src_path_of(item)
+    src_time = os.path.getmtime(src)
     dest_time = os.path.getmtime(dest)
     if (dest_time <= src_time - grace_period) :
         return True
+    # check whether destination is older than any comment in the source
     comments = commentfiles_for(item)
     for comment in comments:
         log(5,'Comment found: ' + str(comment))
@@ -776,7 +789,7 @@ media_types = ['jpg','gif','pdf','png']
 # Copy all media associated with an item, keeping their metadata.
 # - item: path to item in the source tree
 def copy_media(item: Path):
-    log(2,'- Copying mediafiles')
+    log(2,'Copying mediafiles')
     src_folder = src_folder_of(item)
     dest_folder = dest_folder_of(item)
     for t in media_types:
@@ -784,12 +797,14 @@ def copy_media(item: Path):
             log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
             shutil.copy2(f,dest_folder) # keep metadata
 
-# Remove all files (not diretories) from a folder
+# Remove all non html files (not diretories) from a folder
+# (Keep the html file because that will be remade, and we want to check
+# later whether the new version is the same as the old or not)
 # - folder: folder to clean
 def clean_folder(folder: Path):
-    log(2,'- Cleaning destination ' + str(folder))
+    log(2,'Cleaning destination ' + str(folder))
     for f in folder.glob('*'):
-        if not f.is_dir():
+        if (not f.is_dir()) and (f.suffix != '.html'):
             os.remove(f)
 
 # Make the output (in dest_root) for the item (from src_root)
@@ -892,9 +907,9 @@ def make_home():
             # and add this to the files to append when making the home page
             pandoc_append_str = pandoc_append_str + ' -A ' + summary_name 
         # create the home page, including the summarized entries    
-        summary_template = get_template('ssst-homepage.html')
         # any content in <src>/index.sst will be prepended before the summarised
         # posts; in particular its metadata determine the title and subtitle
+        summary_template = get_template('ssst-homepage.html')
         src = src_path_of('index.sst')                       
         dest = dest_of('index.html')
         dest_tmp = dest.with_suffix('.tmp')
@@ -920,7 +935,7 @@ parser.add_argument('-s', '--source', default=src_root,
 parser.add_argument('-d', '--destination', default=dest_root,
                     help='Path to the root of the destination files tree')
 parser.add_argument('-r', '--root', default=hosting_root,
-                    help='Root where the site is hosted. If omitted, the root is found using relative addressing, making the site relocateable')
+                    help='Root where the site is hosted. If omitted, the root is found using relative addressing, making the site relocatable')
 parser.add_argument('-t', '--templates', default=templates,
                     help='Path to directory with templates')
 parser.add_argument('-v', '--verbosity', default=loglevel,
@@ -931,7 +946,9 @@ parser.add_argument('-f', '--force', default = False, action='store_true',
                     help='(Re)make everything')
 parser.add_argument('-g', '--gladtex', default = False, action='store_true',
                     help='Use pandoc --gladtex to process LaTeX equations.')
-parser.add_argument('-x', '--strict', default = False, action='store_true',
+parser.add_argument('-k', '--keepsimple', default = False, action='store_true',
+                    help='Do not process simple LaTex equations')
+parser.add_argument('-p', '--pedantic', default = False, action='store_true',
                     help='Abort after warning')
 parser.add_argument('-z', '--summarylength', default=summary_length,
                     help='Number of lines in post (including YAML header) to include in a summary')
@@ -952,7 +969,8 @@ if not templates.exists():
 loglevel = int(args.verbosity)
 force = args.force
 use_gladtex = args.gladtex
-strict = args.strict
+pedantic = args.pedantic
+keep_simple_eqs = args.keepsimple
 logname = args.logfile
 summary_length = int(args.summarylength)
 

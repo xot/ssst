@@ -20,7 +20,7 @@ src_root = "./src"
 #---
 
 # Abort after warning
-strict = False 
+pedantic = False 
 
 # Verbosity
 loglevel = -1
@@ -33,7 +33,7 @@ def error (msg):
 def warning (msg):
     m = "ssst-add: warning: %s\n" % str(msg)
     sys.stderr.write(m)
-    if strict:
+    if pedantic:
         sys.exit (1)
 
 def log (level,msg):
@@ -144,7 +144,7 @@ parser.add_argument("-s", "--source", default=src_root,
                     help="Path to the root of the source files tree")
 parser.add_argument("-v", "--verbosity", default=loglevel,
                     help="Verbosity (-1, the default, is silent)")
-parser.add_argument("-x", "--strict", default = False, action="store_true",
+parser.add_argument("-p", "--pedantic", default = False, action="store_true",
                     help="Abort after warning")
 args = parser.parse_args()
 
@@ -155,7 +155,7 @@ if not os.path.exists(src_root):
 post = args.post
 if not os.path.exists(post):
     error('Post %s does not exist.' % post)
-strict = args.strict
+pedantic = args.pedantic
 loglevel = int(args.verbosity)
 
 # do it
