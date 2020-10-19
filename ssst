@@ -556,7 +556,7 @@ def make_item(item,tmpdir,item_template):
 # in the YAML header for item
 def item_template(item,default):
     if item in post_metadata:
-        template = post_metadata[post][2]
+        template = post_metadata[item][2]
         if template != '':
             return get_template(template)
     return get_template(default)
