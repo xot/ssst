@@ -9,7 +9,7 @@
 #
 # Author: Jaap-henk Hoepman (jhh@xs4all.nl)
 
-import argparse, sys, os, yaml, datetime, shutil, string
+import argparse, sys, os, yaml, datetime, shutil, string, html
 from pathlib import Path
 
 # Path to the root of the source files tree
@@ -83,6 +83,7 @@ def map_char (c):
 # Replace any non-letter or digit in the title with -, avoiding repetitions
 # of '-' or a '-' at the end
 def normalise_title(title):
+    title = html.unescape(title)
     res = ""
     lastchar = '-'
     for i in range (0,len(title)):
