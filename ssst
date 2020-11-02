@@ -949,7 +949,9 @@ def make_home():
         # any content in <src>/index.sst will be prepended before the summarised
         # posts; in particular its metadata determine the title and subtitle
         summary_template = get_template('ssst-homepage.html')
-        src = src_path_of('index.sst')                       
+        src = src_path_of('index.sst')
+        if not src.exists():
+          error('Home page input %s does not exist.' % src)
         dest = dest_of('index.html')
         dest_tmp = dest.with_suffix('.tmp')
         # set the pandoc command string
