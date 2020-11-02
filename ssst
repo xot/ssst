@@ -805,6 +805,7 @@ def worklist ():
     # insert any "neighbours" of posts in the worklist as well, to ensure
     # that their next and prev links are updated
     for post in list:
+        # if post is not a post really (but a page), prev=''
         prev = prev_post(post)
         if (prev != '') and (prev not in extended_list):
             extended_list.append(prev)
