@@ -20,7 +20,9 @@ SSST also processes LaTeX equations in a post, replacing them with SVG images co
 
 # Usage
 
-SSST processes all files in a source tree rooted at `SOURCE`, and writes its output into a destination tree rooted at `DESTINATION`.
+## Creating the output
+
+`ssst` processes all files in a source tree rooted at `SOURCE`, and writes its output into a destination tree rooted at `DESTINATION`.
 
 ```
 usage: ssst [-h] [-s SOURCE] [-d DESTINATION] [-r ROOT] [-t TEMPLATES]
@@ -50,6 +52,8 @@ optional arguments:
                         include in a summary
 ```
 
+## Adding new posts
+
 The `ssst-add` utility adds a markdown post to its appropriate place in the source tree (using the current date or the date in the post header), and does some consistency checks.
 
 ```
@@ -67,6 +71,26 @@ optional arguments:
   -p, --pedantic        Abort after warning
 ```
 
+## Adding a comment
+
+The `ssst-comment` utility ads a comment received by email (as generated when a users submits a comment while clicking on SSST generated comment or reply link) in the appropriate file in the source tree. It uses the From and Date header in the email to set the author and date for the comment. The contents of the email are used as comment text.
+
+```
+usage: ssst-comment [-h] [-s SOURCE] [-v VERBOSITY] [-l LOGFILE] [-p] mail
+
+positional arguments:
+  mail                  Mail containing comment to add
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -s SOURCE, --source SOURCE
+                        Path to the root of the source files tree
+  -v VERBOSITY, --verbosity VERBOSITY
+                        Verbosity (-1, the default, is silent)
+  -l LOGFILE, --logfile LOGFILE
+                        Name of file to store all log messages in
+  -p, --pedantic        Abort after warning
+```
 
 # Input
 
