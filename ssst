@@ -142,6 +142,19 @@ def log (level: int, msg: str):
     if logfile != None:
         logfile.write(m)
 
+
+# ---
+# SHELL
+# ---
+
+# Run a shell command. Abort and print the error message when it fails
+# - command
+def run_shell_command(command: str):
+    log(4,'Running shell command ' + command)
+    result = subprocess.run(command,text=True,shell=True,capture_output=True)
+    if result.returncode != 0:
+        error(result.stderr)
+    
 # ---
 # YAML
 # ---
@@ -401,11 +414,10 @@ def process_eq(latex_expr):
         with open(tmp_tex,'w') as w:
             w.write(latex_document)
         # create the pdf (in the temporary directory) from the latexfile
-        subprocess.run('pdflatex -output-directory ' + tmpdir + ' ' + tmp_tex,
-                       shell=True,capture_output=True)
+        run_shell_command('pdflatex -output-directory ' + \
+                             tmpdir + ' ' + tmp_tex)
         # create the SVG from the pdf
-        subprocess.run('pdf2svg ' + tmp_pdf + ' ' + str(svg_full_path),
-                       shell=True,capture_output=True)        
+        run_shell_command('pdf2svg ' + tmp_pdf + ' ' + str(svg_full_path))
     return svg_output_name
 
 # Match &lt;
@@ -548,8 +560,7 @@ def make_item(item,tmpdir,item_template):
         ' --metadata root=' + str(item_root(item)) + \
         extra_metadata_str + \
         ' -o '+ str(dest_tmp) + ' ' + str(src)
-    log(4,'Command ' + command)
-    subprocess.run(command,shell=True,capture_output=False)
+    run_shell_command(command)
     replace_when_changed(dest,dest_tmp)    
 
 # Return the template to use to process item: default if none specified
@@ -630,8 +641,7 @@ def make_comments(item,tmpdir):
             ' --metadata reply=' + reply_path + \
             ' --template=' + str(comment_template) + \
             ' -o ' + outf + ' ' + str(c)
-        log(4,'Command ' + command)
-        subprocess.run(command,shell=True,capture_output=False)
+        run_shell_command(command)
     # now recursively fold in comments created in tmpdir
     comments = fold_comments(tmpdir + '/comment')
     log(5,comments)
@@ -908,8 +918,7 @@ def summarize_post(post: Path, fname: str):
         ' --metadata root="' + str(item_root(Path('index.html'))) + '"' + \
         ' --metadata path="' + post_url + '"' + \
         ' -o '+ str(fname)
-    log(4,'Command ' + command)
-    subprocess.run(command,shell=True,capture_output=False)
+    run_shell_command(command)
     # fix any local links in the output (that point to local media in the
     # directory containing the post) by replacing them with their full path
     # from the root of the destination tree (where the home page is where this
@@ -960,8 +969,7 @@ def make_home():
             pandoc_append_str + \
             ' --metadata root=' + str(item_root(Path('index.html'))) + \
             ' -o '+ str(dest_tmp) + ' ' + str(src)
-        log(4,'Command ' + command)
-        subprocess.run(command,shell=True,capture_output=False)
+        run_shell_command(command)
         # replace file containing the home page only if its contents changed
         replace_when_changed(dest,dest_tmp)    
 
