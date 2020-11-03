@@ -95,7 +95,7 @@ items_with_cat = {}
 # (filled by process_posts -> process_post_metadata) 
 post_metadata = {}
 
-# List of all relative pathnames for posts, sorted by date
+# List of all relative pathnames for posts, sorted by date (most recent first)
 # (with the help of process_posts)
 all_posts = []
 
@@ -370,7 +370,8 @@ def process_posts ():
     # sort all posts by date and store the list of relative paths in all_posts
     for post in post_metadata:
         all_posts.append(post)
-    all_posts.sort(key=lambda entry: post_metadata[entry][0])
+    # sort in decending order
+    all_posts.sort(reverse=True,key=lambda entry: post_metadata[entry][0])
     
         
 
@@ -504,22 +505,22 @@ def process_equations (item):
 # MAKE POST / PAGE
 # ---
 
-# return the path to next post following item; '' if none
-# (this uses the fact that all_posts is sorted by date)
+# return the path to next post (more recent) following item; '' if none
+# (this uses the fact that all_posts is sorted by date in descending order)
 def next_post(item):
-    if item in all_posts:
-        pos = all_posts.index(item)
-        if pos+1 < len(all_posts):
-            return all_posts[pos+1]
-    return ''
-
-# return the path to previous post following item; '' if none
-# (this uses the fact that all_posts is sorted by date)
-def prev_post(item):
     if item in all_posts:
         pos = all_posts.index(item)
         if pos-1 >= 0:
             return all_posts[pos-1]
+    return ''
+
+# return the path to previous post (less recent) following item; '' if none
+# (this uses the fact that all_posts is sorted by date in descending order)
+def prev_post(item):
+    if item in all_posts:
+        pos = all_posts.index(item)
+        if pos+1 < len(all_posts):
+            return all_posts[pos+1]
     return ''
 
 # Make the html item from the md or sst source specified by item, merging
@@ -666,9 +667,9 @@ def dump_entry(entry,outname,outf):
 # containing a list of links to all posts in filelist
 # (assumed to be sorted by date)
 def dump(out_name,type,label,filelist):
-    # sort the list of pathnames by date
+    # sort the list of pathnames by date, most recent first
     # (using the fact that the path encodes the file date)
-    filelist.sort()
+    filelist.sort(reverse=True)
     os.makedirs(src_folder_of(out_name),exist_ok=True)
     log(3,'Dumping to ' + str(out_name))
     with DelayedTextfile(src_path_of(out_name)) as outf:
@@ -722,9 +723,10 @@ def dump_archives():
             monthyear = date.strftime("%B %Y")
             archive_relative_path = date.strftime("%Y/%m/index.sst")
             archive_path = src_path_of(archive_relative_path)
+            # if we are processing a new month
             if archive_path not in archive_paths:
-                # write a header every time the year changes
-                # (this assumes all_posts is sorted)
+                # write a header every time the year changes to the main
+                # archive file (this assumes all_posts is sorted)
                 if last_year_archived != archive_year:
                     last_year_archived = archive_year
                     archivef.write('\n## ' + str(archive_year) + '\n')
@@ -939,9 +941,8 @@ def summarize_post(post: Path, fname: str):
 # as template and <src>/index.sst as markdown input
 def make_home():
     log(0,'Making home page.')
-    # get the 5 most recent posts and reverse the order: most recent first
-    recent_posts = all_posts[-5:]
-    recent_posts.reverse()
+    # get the 5 most recent posts 
+    recent_posts = all_posts[0:5]
     # creata a temorary direcotry to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
