@@ -19,27 +19,50 @@ src_root = "./src"
 # WARNINGS AND ERRORS
 #---
 
+# logfile
+logfile = None 
+
 # Abort after warning
 pedantic = False 
 
 # Verbosity
 loglevel = -1
 
-def error (msg):
+# Outpur the error message, and log it when required. Then exit
+# - msg: the error message
+def error (msg: str):
     m = "ssst-add: error: %s\n" % str(msg)
     sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
     sys.exit (1)
 
-def warning (msg):
+# Output the warning message, and write it to the log file if it was specified.
+# Exit when pedantic processing was specified.
+# - msg: the warning message
+def warning (msg: str):
     m = "ssst-add: warning: %s\n" % str(msg)
     sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
     if pedantic:
         sys.exit (1)
 
-def log (level,msg):
-    m = str(msg)+"\n"
+# Output a log message when its level is lower than the specifief verbosity
+# on the command line. Always write the message to the log file if it was
+# specified 
+# - level: the log-level for this message
+# - msg: the log message
+def log (level: int, msg: str):
+    if level == 0:
+        m = '# '
+    else:
+        m = '-' * level + ' '
+    m = m + str(msg) + '\n'
     if (level <= loglevel):
         sys.stdout.write(m)
+    if logfile != None:
+        logfile.write(m)
         
 # ---
 # YAML
@@ -147,6 +170,8 @@ parser.add_argument("-s", "--source", default=src_root,
                     help="Path to the root of the source files tree")
 parser.add_argument("-v", "--verbosity", default=loglevel,
                     help="Verbosity (-1, the default, is silent)")
+parser.add_argument('-l', '--logfile', default='ssst-add.log',
+                    help='Name of file to store all log messages in')
 parser.add_argument("-p", "--pedantic", default = False, action="store_true",
                     help="Abort after warning")
 args = parser.parse_args()
@@ -160,6 +185,15 @@ if not os.path.exists(post):
     error('Post %s does not exist.' % post)
 pedantic = args.pedantic
 loglevel = int(args.verbosity)
+logname = args.logfile
+
+# open logfile
+if logname != '':
+    logfile = open(logname,'w')
 
 # do it
 add(src_root,post)
+
+# close the logfile if necessary
+if logfile != None:
+    logfile.close()
