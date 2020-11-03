@@ -13,7 +13,19 @@ import argparse, sys, os, yaml, datetime, shutil, string, html
 from pathlib import Path
 
 # Path to the root of the source files tree
-src_root = "./src"
+src_root = Path('./src')
+
+# ---
+# USER INPUT
+# ---
+
+def yes_or_no(question):
+    while True:
+        reply = str(input(question+' (y/n): ')).lower().strip()
+        if reply[0] == 'y':
+            return True
+        if reply[0] == 'n':
+            return False
 
 #---
 # WARNINGS AND ERRORS
@@ -48,6 +60,17 @@ def warning (msg: str):
     if pedantic:
         sys.exit (1)
 
+
+# Output the warning message, and write it to the log file if it was specified.
+# Exit when pedantic processing was specified, otherwise ask user whether to
+# continue or not.
+# - msg: the warning message
+def interactive_warning (msg: str):
+    warning(msg)
+    if not yes_or_no('Do you want to continue?'):
+        error('Stopped')
+    
+        
 # Output a log message when its level is lower than the specifief verbosity
 # on the command line. Always write the message to the log file if it was
 # specified 
@@ -63,7 +86,9 @@ def log (level: int, msg: str):
         sys.stdout.write(m)
     if logfile != None:
         logfile.write(m)
-        
+
+
+
 # ---
 # YAML
 # ---
@@ -82,21 +107,13 @@ def get_yaml_dict(src):
 # Utility
 # ---
 
-# Remove the trailing slash from folder names
-def remove_trailing_slash (s):
-    if len(s) == 0:
-        return s
-    if s[-1] == '/':
-        return s[:-1]
-    return s
-
 # Return the full path of the folder that contains the item
 def item_folder (item):
     if type(item) is str:
         item = Path(item)
     return item.parents[0]
 
-# Replace any non letter or digit with '-'
+# Replace any non letter or digit with '-'; turn uppercase to lowercase
 def map_char (c):
     if (c in string.ascii_lowercase) or (c in string.digits):
         return c
@@ -105,7 +122,8 @@ def map_char (c):
     else:
         return '-'
 
-# Replace any non-letter or digit in the title with -, avoiding repetitions
+# Remove any html escapes (like &nbsp;) fromt the title. Replace any
+# non-letter or digit in the title with -, avoiding repetitions
 # of '-' or a '-' at the start or the end. Convert to lowercase
 def normalise_title(title):
     title = html.unescape(title)
@@ -121,6 +139,32 @@ def normalise_title(title):
     else:
         return res
 
+# Check a list of known categories (determined by inspecting the src-tree)
+def check_known_categories(src_root,categories):
+    # careful: categories may be a single string
+    if type(categories) is str:
+        categories = [ categories ]
+    cats = []
+    for f in Path(src_root / 'category').glob('*'):
+        cats.append(f.name)
+    log(2,'Checking known categories ' + str(cats))
+    for c in categories:
+        if c not in cats:
+            interactive_warning('Unknown category ' + c)
+
+
+# Check a list of known tags (determined by inspecting the src-tree)
+def check_known_tags(src_root,keywords):
+    tags = []
+    for f in Path(src_root / 'tag').glob('*'):
+        tags.append(f.name)
+    log(2,'Checking known tags ' + str(tags))    
+    for k in keywords:
+        if k not in tags:
+            interactive_warning('Unknown tag ' + k)
+
+
+    
 # add post at the appropriate location in the src_root (determined by the date
 # and the title, using today if no date found in the post).
 # Add the date to the post when neccessary
@@ -140,12 +184,16 @@ def add(src_root,post):
     else:
         date = datetime.date.today()
         yaml_header['date'] = date
-    # warn for missing categories and keywrods
+    # warn for missing categories and keywords
     if not 'categories' in yaml_header:
-        warning("Post is missing a category")
+        interactive_warning("Post is missing a category")
+    else:
+        check_known_categories(src_root,yaml_header['categories'])
     if not 'keywords' in yaml_header:
-        warning("Post is missing a keyword")
-    dest = src_root + date.strftime("/%Y/%m/%d/") + \
+        interactive_warning("Post is missing a keyword")
+    else:
+        check_known_tags(src_root,yaml_header['keywords'])
+    dest = str(src_root) + date.strftime("/%Y/%m/%d/") + \
         normalise_title(title) + "/index.md"
     # make the parent folder if it doesn't exist yet
     parent = item_folder(dest)
@@ -177,8 +225,8 @@ parser.add_argument("-p", "--pedantic", default = False, action="store_true",
 args = parser.parse_args()
 
 # Apply arguments
-src_root = remove_trailing_slash(args.source)
-if not os.path.exists(src_root):
+src_root = Path(args.source)
+if not src_root.exists():
     error('Source tree %s does not exist.' % src_root)
 post = args.post
 if not os.path.exists(post):
