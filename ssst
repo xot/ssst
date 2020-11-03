@@ -693,6 +693,12 @@ def dump_cats_and_tags():
         dump(Path('tag/' + tag + '/index.sst'),
              'Tag',tag,items_with_tag[tag])
 
+# return a sort key for an entry such that entries are sorted
+# by decreasing year, but increasing month and day
+def archive_sort_key(entry):
+    date = post_metadata[entry][0]
+    return (-date.year,date.month,date.day)
+
 # Create archive files containing all posts for a particular month in 
 # ./yyyy/mm/index.sst in the src_root (SOURCE!) tree;
 # Also create a list of all known archives in src_root/archives.sst
@@ -702,7 +708,12 @@ def dump_archives():
     log(0,'Dumping archives.')
     last_year_archived = 0
     # dictionary with DelayedTextFile descriptors, indexed by archivepath
-    archive_paths = {}  
+    archive_paths = {}
+    # sort the posts by *decreasing* year, but increasing month/day within
+    # a year; this ensures that the main archive file lists the most
+    # recent year first
+    archive_posts = all_posts.copy()
+    archive_posts.sort(key=archive_sort_key)
     # create the root archive file (as a DelayedTextfile
     archive = src_path_of('archives.sst')
     log(3,'Writing all archives to ' + str(archive))
@@ -715,7 +726,7 @@ def dump_archives():
         archivef.write("---\n")
         # process all posts and put them in the appropriate archive
         # this creates another DelayedTextfile for every new archive
-        for post in all_posts:
+        for post in archive_posts:
             # construct the full and relative path for the archive this post
             # should appear in
             date = post_metadata[post][0]
@@ -726,7 +737,7 @@ def dump_archives():
             # if we are processing a new month
             if archive_path not in archive_paths:
                 # write a header every time the year changes to the main
-                # archive file (this assumes all_posts is sorted)
+                # archive file (this assumes archive_posts is sorted)
                 if last_year_archived != archive_year:
                     last_year_archived = archive_year
                     archivef.write('\n## ' + str(archive_year) + '\n')
