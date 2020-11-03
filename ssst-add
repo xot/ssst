@@ -155,6 +155,9 @@ def check_known_categories(src_root,categories):
 
 # Check a list of known tags (determined by inspecting the src-tree)
 def check_known_tags(src_root,keywords):
+    # careful: categories may be a single string
+    if type(keywords) is str:
+        keywords = [ keywords ]
     tags = []
     for f in Path(src_root / 'tag').glob('*'):
         tags.append(f.name)
@@ -178,29 +181,31 @@ def add(src_root,post):
     if 'date' in yaml_header:
         date = yaml_header['date']
         if type(date) is str:
-            warning("Cannot parse date in post; using today instead")
+            interactive_warning("Cannot parse date in post; using today instead")
             date = datetime.date.today()
             yaml_header['date'] = date
     else:
         date = datetime.date.today()
         yaml_header['date'] = date
-    # warn for missing categories and keywords
+    # warn for missing or unknown categories
     if not 'categories' in yaml_header:
         interactive_warning("Post is missing a category")
     else:
         check_known_categories(src_root,yaml_header['categories'])
+    # warn for missing or unknown keywords/tags
     if not 'keywords' in yaml_header:
-        interactive_warning("Post is missing a keyword")
+        interactive_warning("Post is missing a keyword/tag")
     else:
         check_known_tags(src_root,yaml_header['keywords'])
+    # determine the full pathname for the post
     dest = str(src_root) + date.strftime("/%Y/%m/%d/") + \
         normalise_title(title) + "/index.md"
     # make the parent folder if it doesn't exist yet
     parent = item_folder(dest)
-    log(1,"Makign parent " + str(parent)) 
+    log(1,"Making parent " + str(parent)) 
     os.makedirs(parent, exist_ok=True)
     # copy the post to its destination, replacing the yaml
-    # block with the one wit the correct date
+    # block with the one with the correct date
     log(0,"Adding " + post + " to " + dest)
     with open(post,"r") as inf:
         s = inf.read()
