@@ -693,9 +693,9 @@ def dump_cats_and_tags():
         catsf.write("---\n")
         catsf.write("title: 'Categories'\n")
         catsf.write("---\n\n")
-        for cat in items_with_cat:
+        for cat in sorted(list(items_with_cat)):
             cat_pathname = Path('category/' + cat + '/index.sst')
-            catsf.write('- [' + cat + '](' + str(cat_pathname) + ')\n')
+            catsf.write('- [' + cat + '](' + item_url(cat_pathname,'.') + ')\n')
             dump(cat_pathname,'Category',cat,items_with_cat[cat])
     tags_pathname = src_path_of('tags.sst')
     # DelayedTextfile will be written to disk when with closes
@@ -704,9 +704,9 @@ def dump_cats_and_tags():
         tagsf.write("---\n")
         tagsf.write("title: 'Tags'\n")
         tagsf.write("---\n\n")
-        for tag in items_with_tag:
+        for tag in sorted(list(items_with_tag)):
             tag_pathname = Path('tag/' + tag + '/index.sst')
-            tagsf.write('- [' + tag + '](' + str(tag_pathname) + ')\n')
+            tagsf.write('- [' + tag + '](' + item_url(tag_pathname,'.') + ')\n')
             dump(tag_pathname,'Tag',tag,items_with_tag[tag])
 
 # return a sort key for an entry such that entries are sorted
