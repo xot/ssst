@@ -75,20 +75,22 @@ def item_folder (item):
 
 # Replace any non letter or digit with '-'
 def map_char (c):
-    if (c in string.ascii_letters) or (c in string.digits):
+    if (c in string.ascii_lowercase) or (c in string.digits):
         return c
+    elif (c in string.ascii_uppercase):
+        return c.lower()
     else:
         return '-'
 
 # Replace any non-letter or digit in the title with -, avoiding repetitions
-# of '-' or a '-' at the end
+# of '-' or a '-' at the start or the end. Convert to lowercase
 def normalise_title(title):
     title = html.unescape(title)
     res = ""
     lastchar = '-'
     for i in range (0,len(title)):
         c = map_char(title[i])
-        if c != lastchar:
+        if not ((c == '-') and (lastchar == '-')):
             lastchar = c
             res = res + c
     if res[-1] == "-":
