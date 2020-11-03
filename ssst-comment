@@ -1,0 +1,223 @@
+#!/usr/local/bin/python3
+#
+# SSST-COMMENT
+#
+# Add a new comment to a blogpost
+#
+# Part of SSST:
+# A simple static site tool to maintain websites based on markdown and pandoc
+#
+# Author: Jaap-henk Hoepman (jhh@xs4all.nl)
+
+import argparse, sys, os, re, email, datetime
+from pathlib import Path
+from email.policy import SMTP
+
+# Path to the root of the source files tree
+src_root = Path('./src')
+
+#---
+# WARNINGS AND ERRORS
+#---
+
+# logfile
+logfile = None 
+
+# Abort after warning
+pedantic = False 
+
+# Verbosity
+loglevel = -1
+
+# Outpur the error message, and log it when required. Then exit
+# - msg: the error message
+def error (msg: str):
+    m = "ssst-comment: error: %s\n" % str(msg)
+    sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
+    sys.exit (1)
+
+# Output the warning message, and write it to the log file if it was specified.
+# Exit when pedantic processing was specified.
+# - msg: the warning message
+def warning (msg: str):
+    m = "ssst-comment: warning: %s\n" % str(msg)
+    sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
+    if pedantic:
+        sys.exit (1)
+
+# Output a log message when its level is lower than the specifief verbosity
+# on the command line. Always write the message to the log file if it was
+# specified 
+# - level: the log-level for this message
+# - msg: the log message
+def log (level: int, msg: str):
+    if level == 0:
+        m = '# '
+    else:
+        m = '-' * level + ' '
+    m = m + str(msg) + '\n'
+    if (level <= loglevel):
+        sys.stdout.write(m)
+    if logfile != None:
+        logfile.write(m)
+
+# ---
+# FOLDER FUNCTIONS
+# ---
+
+
+# Remove the trailing slash from folder names
+def remove_trailing_slash (s):
+    if len(s) == 0:
+        return s
+    if s[-1] == '/':
+        return s[:-1]
+    return s
+
+# ---
+# PROCESSING MAIL
+# ---
+
+subject_re = re.compile(r'\'NOTIFICATION: (.*)\'')
+
+# Parse the subject string to obtain the pathname to store the comment in;
+# Finds the first empty comment file slot and returns this as a full path
+# - subjectstr: subjetc, which looks like this: 'NOTIFICATION: <stem>'
+# - returns: full path to store comment in
+def get_fname(subjectstr: str) -> Path:
+    log(1,'Parsing subject ' +  subjectstr)
+    match_obj = subject_re.match(subjectstr)
+    if match_obj:
+        stem = match_obj.group(1)
+    else:
+        error('Could not parse subject')
+    # prepend the src_root to get the full path for the stem
+    fullstem = src_root / stem
+    # check if parent exists
+    parent = fullstem.parent
+    if not parent.exists():
+        error('Folder to store comment in does not exist ' + str(parent))
+    # try all possible fullpaths for the stem by appending .1.mdc .2.mdc .3
+    # until a non existing filename is found
+    count = 1
+    fullpath = Path(str(fullstem) + str(count) + '.mdc')
+    while fullpath.exists():
+        count = count + 1
+        fullpath = Path(str(fullstem) + str(count) + '.mdc')
+    return fullpath
+
+# regular expression matching a basic email address: any nonspace string
+# containing exactly one @
+basic_addr_re = re.compile(r'([^ ]*@[^ ]*)')
+
+# regular expression matching a complex email address: any nonspace 
+complex_addr_re = re.compile(r'([^<]*)<[^ ]*@[^ ]*>')
+
+
+# Parse From: header accordign to RFC 5322:
+# https://tools.ietf.org/html/rfc5322
+# from            =   "From:" mailbox-list CRLF
+# sender          =   "Sender:" mailbox CRLF
+# mailbox         =   name-addr / addr-spec
+# name-addr       =   [display-name] angle-addr
+# angle-addr      =   [CFWS] "<" addr-spec ">" [CFWS] /
+#                       obs-angle-addr
+# addr-spec       =   local-part "@" domain
+#
+# - fromstr: the string containing the value of the From header
+#   (i.e without From:)
+def get_author(fromstr: str) -> str:
+    # We assume a single mailbox, and use the following rule of thumb: either
+    # - the mailbox is a string without spaces containing @, in which case we
+    #   return this full email address
+    # - the mailbox is a string starting with a full name (possibly enclosed
+    #   in quotes) which ends with an email address enclosed in angular brackets
+    log(1,'Parsing author ' +  fromstr)
+    matchobj = basic_addr_re.match(fromstr)
+    if matchobj:
+        log(2,'Found a basic address')
+        return matchobj.group(1)
+    matchobj = complex_addr_re.match(fromstr)
+    if matchobj:
+        log(2,'Found a complex address')
+        return matchobj.group(1)
+    error('Could not parse author ' +  fromstr)
+
+# Parse an SMTP date string like "Sun, 19 Apr 2020 08:42:00 +0000"
+# - date: string containing date
+def get_date(datestr: str) -> str:
+    log(1,'Parsing date ' + datestr) 
+    time = datetime.datetime.strptime(datestr,"%a, %d %b %Y %H:%M:%S %z")
+    return str(time.date())
+    
+# Add a comment as received by email into the appropriate position in the source
+# tree
+# - mail: filename containing mail containing the comment
+def add (mail: str):
+    log(1,'Processing ' + mail)
+    with open(mail, 'rb') as fp:
+        # parse the message
+        msg = email.message_from_binary_file(fp, policy=SMTP)
+        # get the filename to store the comment im
+        if 'Subject' in msg:
+            fname = get_fname(msg['Subject'])
+        else:
+            error('Subject missing')
+        # get the author
+        if 'From' in msg:
+            author = get_author(msg['From'])
+        else:
+            error('From missing')
+        # get the date
+        if 'Date' in msg:
+            date = get_date(msg['Date'])
+        else:
+            error('Date missing')
+        # get the content
+        content = msg.get_content()
+        log(0,'Writing comment from ' + author + ' dated ' + date + ' to ' + str(fname))
+        with open(fname,'w') as outf:
+            outf.write("---\n")
+            outf.write("author: '" + author + "'\n")
+            outf.write("date: '" + date + "'\n")                        
+            outf.write("---\n")            
+            outf.write(content)
+        
+# Set up arguments parsing
+parser = argparse.ArgumentParser()
+parser.add_argument("mail", help="Mail containing comment to add")
+parser.add_argument("-s", "--source", default=src_root,
+                    help="Path to the root of the source files tree")
+parser.add_argument("-v", "--verbosity", default=loglevel,
+                    help="Verbosity (-1, the default, is silent)")
+parser.add_argument('-l', '--logfile', default='ssst-comment.log',
+                    help='Name of file to store all log messages in')
+parser.add_argument("-p", "--pedantic", default = False, action="store_true",
+                    help="Abort after warning")
+args = parser.parse_args()
+
+# Apply arguments
+src_root = Path(args.source)
+if not src_root.exists():
+    error('Source tree %s does not exist.' % src_root)
+mail = args.mail
+if not os.path.exists(mail):
+    error('Post %s does not exist.' % mail)
+pedantic = args.pedantic
+loglevel = int(args.verbosity)
+logname = args.logfile
+
+# open logfile
+if logname != '':
+    logfile = open(logname,'w')
+
+# do it
+add(mail)
+
+# close the logfile if necessary
+if logfile != None:
+    logfile.close()
