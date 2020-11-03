@@ -82,7 +82,7 @@ def remove_trailing_slash (s):
 # PROCESSING MAIL
 # ---
 
-subject_re = re.compile(r'\'NOTIFICATION: (.*)\'')
+subject_re = re.compile(r'\'COMMENT: (.*)\'')
 
 # Parse the subject string to obtain the pathname to store the comment in;
 # Finds the first empty comment file slot and returns this as a full path
