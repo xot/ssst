@@ -100,7 +100,7 @@ def get_fname(subjectstr: str) -> Path:
     # check if parent exists
     parent = fullstem.parent
     if not parent.exists():
-        error('Folder to store comment in does not exist ' + str(parent))
+       error('Folder to store comment in does not exist ' + str(parent))
     # try all possible fullpaths for the stem by appending .1.mdc .2.mdc .3
     # until a non existing filename is found
     count = 1
@@ -153,7 +153,67 @@ def get_date(datestr: str) -> str:
     log(1,'Parsing date ' + datestr) 
     time = datetime.datetime.strptime(datestr,"%a, %d %b %Y %H:%M:%S %z")
     return str(time.date())
-    
+
+from html.parser import HTMLParser
+
+# https://gist.github.com/lingnet/e3da99c1a580552bfbf7f0550453d989
+
+class HTMLtoText(HTMLParser):
+    def __init__(self):
+        HTMLParser.__init__(self)
+        self._buf = []
+        self.hide_output = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ('p', 'br') and not self.hide_output:
+            self._buf.append('\n')
+        elif tag in ('script', 'style'):
+            self.hide_output = True
+
+    def handle_startendtag(self, tag, attrs):
+        if tag == 'br':
+            self._buf.append('\n')
+
+    def handle_endtag(self, tag):
+        if tag == 'p':
+            self._buf.append('\n')
+        elif tag in ('script', 'style'):
+            self.hide_output = False
+
+    def handle_data(self, text):
+        if text and not self.hide_output:
+            self._buf.append(re.sub(r'\s+', ' ', text))
+
+    def handle_entityref(self, name):
+        if name in name2codepoint and not self.hide_output:
+            c = chr(name2codepoint[name])
+            self._buf.append(c)
+
+    def handle_charref(self, name):
+        if not self.hide_output:
+            n = int(name[1:], 16) if name.startswith('x') else int(name)
+            self._buf.append(chr(n))
+
+    def get_text(self):
+        return re.sub(r' +', ' ', ''.join(self._buf))
+
+# Retrun the first text part in the message; convert to plaintext if html
+def get_content(msg: email.message) -> str:
+    log(1,'Getting content')
+    # first try to get plain text
+    for part in msg.walk():    
+        if part.get_content_type() == 'text/plain':
+            return part.get_content()
+    # if that fails get html and convert to plaint text
+    for part in msg.walk():    
+        if part.get_content_type() == 'text/html':
+            html = part.get_content()
+            parser = HTMLtoText()
+            parser.feed(html)
+            parser.close()
+            return parser.get_text()
+    error('Message does not contain text part')
+
 # Add a comment as received by email into the appropriate position in the source
 # tree
 # - mail: filename containing mail containing the comment
@@ -178,7 +238,8 @@ def add (mail: str):
         else:
             error('Date missing')
         # get the content
-        content = msg.get_content()
+        content = get_content(msg)
+        log(2,content)
         log(0,'Writing comment from ' + author + ' dated ' + date + ' to ' + str(fname))
         with open(fname,'w') as outf:
             outf.write("---\n")

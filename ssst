@@ -588,6 +588,8 @@ def make_page(page,tmpdir):
     if str(page) == 'archives.sst':
         page_template = get_template('ssst-archives.html')
     else:
+        # FIXME: pages dont have an entry in post_metadata, so this will
+        # always return the default template ssst-page.html
         page_template = item_template(page,'ssst-page.html')
     make_item(page,tmpdir,page_template)
 
@@ -852,6 +854,8 @@ def worklist ():
         if (next != '') and (next not in extended_list):
             extended_list.append(next)
     # add all *.sst files that need to be made
+    # FIXME: this may include ./index.sst which is always made separetely
+    # with make_home()
     final_list = extended_list + worklist_for('.sst')
     log(0,str(len(final_list)) + ' files to process found')
     return final_list
@@ -1056,7 +1060,7 @@ if logname != '':
     logfile = open(logname,'w')
 
 # first collect all metadate (like tags and categories, but also title and date
-# for all blog entries in the source tree. This initializes
+# for all blog entries (posts and pages) in the source tree. This initializes
 # - items_with_cat
 # - items_with_tag
 # - post_metadata
@@ -1064,13 +1068,14 @@ if logname != '':
 process_posts()
 
 # dump the category and tag files in ./category/<categorystring>/index.sst and
-# ./tag/<tagstring>/index.sst
+# ./tag/<tagstring>/index.sst, and create the overviews ./categories.sst
+# and ./tags.sst
 dump_cats_and_tags()
 
 # dump all archive files ./yyyy/mm/index.sst and ./archives.sst
 dump_archives()
 
-# make all html files
+# make all html files (also for the .sst files just generated)
 for item in worklist():
     make(item)
 
