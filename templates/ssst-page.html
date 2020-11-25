@@ -24,13 +24,13 @@ $endfor$
   <div id="canvas">
     <div id="header">
       <div id="menu">
-	  <a href="$root$/index.html">Home</a></li> //
+	  <a href="$root$/index.html">Home</a></li>, 
 	  <a href="$root$/about-2/index.html">About</a></li>
 $if(prev)$
-	  // <a href="$prev$">Previous</a>
+	  , <a href="$prev$">Previous</a>
 $endif$
 $if(next)$
-	  // <a href="$next$">Next</a>
+	  , <a href="$next$">Next</a>
 $endif$
       </div><!--menu-->
     </div><!--header-->
@@ -58,18 +58,14 @@ $endfor$
   </div><!--page -->
   <div id="footer">
     <hr>
-    <a id="search" href="https://www.startpage.com/do/dsearch?query=site:SITE">Search</a>
-    ///
-    <a id="archives" href="$root$/archives.html">Archives</a>
-    ///
-    <a id="categories" href="$root$/categories.html">Categories</a>
-    ///
-    <a id="tags" href="$root$/tags.html">Tags</a>
-    ///
-    <span id="feed">RSS Feed
-    </span>
-    ///
-    <a id="subscribe" href="mailto:EMAILADDRESS?subject=Subscribe">Subscribe</a>
+    <a id="search" href="https://www.startpage.com/do/dsearch?query=site:SITE">Search</a>,
+    <a id="archives" href="$root$/archives.html">Archives</a>,
+    <a id="categories" href="$root$/categories.html">Categories</a>,
+    <a id="tags" href="$root$/tags.html">Tags</a>,
+    <span id="feed">RSS Feed</span>,
+    <a id="subscribe"
+       href="mailto:EMAILADDRESS?subject=Subscribe">Subscribe</a>,
+    Made with <a href="https://github.com/xot/ssst">SSST</a>. 
   </div><!--footer-->
   </div><!--canvas-->
 </body>
