@@ -406,6 +406,7 @@ def process_eq(latex_expr):
     # create the SVG output name
     svg_output_name = 'index.' + str(eq_match_count) + '.svg'
     svg_full_path = basefolder / svg_output_name
+    svg_tmp = svg_full_path.with_suffix('.tmp')
     log(4,'Storing equation in ' + str(svg_full_path))
     # creata a temorary direcotry to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -425,7 +426,9 @@ def process_eq(latex_expr):
         run_shell_command('pdflatex -output-directory ' + \
                              tmpdir + ' ' + tmp_tex)
         # create the SVG from the pdf
-        run_shell_command('pdf2svg ' + tmp_pdf + ' ' + str(svg_full_path))
+        run_shell_command('pdf2svg ' + tmp_pdf + ' ' + str(svg_tmp))
+        # replace destination only when real changes occured
+        replace_when_changed(svg_full_path,svg_tmp)    
     return svg_output_name
 
 # Match &lt;
