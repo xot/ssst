@@ -33,9 +33,11 @@ class DelayedTextfile(StringIO):
             with open(self.path,'r') as f:
                 oldcontents = f.read()
                 if oldcontents == newcontents:
+                    log(5,'File not changed ' + str(self.path))
                     return False
         with open(self.path,'w') as f:
             f.write(newcontents)
+            log(5,'File changed ' + str(self.path))
             return True
 
     # Allow with DelayedTextfile(name) as f: constructions
@@ -56,6 +58,10 @@ src_root = Path('./src')
 
 # Path to the root of the destination files tree
 dest_root = Path('./public')
+
+# List of all files in dest_root that changed in the process
+dest_root_changes = []
+
 
 # Root where the site is hosted
 # (relative adressing, making the whole site relocatable, is the default)
@@ -267,6 +273,7 @@ def replace_when_changed (current: Path, update: Path):
     if (not current.exists()) or \
        (not filecmp.cmp(current,update,shallow=False)): 
         log(5,'File changed ' + str(current))
+        dest_root_changes.append(current)
         update.rename(current)
     else:
         log(5,'File not changed ' + str(current))
@@ -362,7 +369,7 @@ def is_post(item: Path) -> bool:
 # the following global variables:
 # items_with_cat, items_with_tag, post_metadata and all_posts
 def process_posts ():
-    log(0,'Processing posts')
+    log(0,'Processing posts.')
     # Find all posts (they have suffix .md) and process their metadata
     for item in src_files_with_suffix('.md'):
         if is_post(item_relpath(item)):
@@ -478,15 +485,15 @@ plain_eq_re = re.compile(r'<span class="math inline">\$(.*?)\$</span>',re.DOTALL
 
 # Process any equations in the item (determined using the regular
 # expression eq_re)
-# - item: relative path to the post to be processed
-def process_equations (item):
+# - fname: full path of item to be processed (note: the parent is the folder
+#      in which any equation images are stored)
+def process_equations (fname):
     global eq_match_count
     global basefolder
     global equations
-    log(2,'Processing equations')
+    log(2,'Processing equations.')
     eq_match_count = 0
     equations = {}
-    fname = dest_of(item)
     basefolder = fname.parent
     # open the file for reading
     with open(fname,'r') as f:
@@ -562,6 +569,9 @@ def make_item(item,tmpdir,item_template):
         extra_metadata_str + \
         ' -o '+ str(dest_tmp) + ' ' + str(src)
     run_shell_command(command)
+    # process any equations in the output
+    process_equations(dest_tmp)
+    # replace destination only when real changes occured
     replace_when_changed(dest,dest_tmp)    
 
 # Return the template to use to process item: default if none specified
@@ -648,7 +658,7 @@ def make_comments(item,tmpdir):
     # now recursively fold in comments created in tmpdir
     comments = fold_comments(tmpdir + '/comment')
     log(5,comments)
-    # and store the comments in commetns.html in the tmpdir
+    # and store the comments in comments.html in the tmpdir
     with open(tmpdir + '/comments.html','w') as f:
         f.write(comments)
 
@@ -857,7 +867,7 @@ def worklist ():
     # FIXME: this may include ./index.sst which is always made separetely
     # with make_home()
     final_list = extended_list + worklist_for('.sst')
-    log(0,str(len(final_list)) + ' files to process found')
+    log(0,str(len(final_list)) + ' files to process found.')
     return final_list
 
 # ---
@@ -877,6 +887,7 @@ def copy_media(item: Path):
     for t in media_types:
         for f in src_folder.glob('*.' + t):
             log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
+            dest_root_changes.append(f)
             shutil.copy2(f,dest_folder) # keep metadata
 
 # Remove all non html files (not diretories) from a folder
@@ -903,7 +914,6 @@ def make(item: Path):
             make_post(item,tmpdir)
         else:
             make_page(item,tmpdir)
-    process_equations(item)
     copy_media(item)
 
 # ---
@@ -1081,6 +1091,15 @@ for item in worklist():
 
 # create the home page containing a summary of the most recent posts
 make_home()
+
+# report about all changed files
+
+if not dest_root_changes:
+    log(0,"No files changed in destination.")
+else:
+    log(0,"Files changed in destination:")
+    for p in dest_root_changes:
+        log(1,str(p))
 
 # close the logfile if necessary
 if logfile != None:
