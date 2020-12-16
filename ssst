@@ -218,7 +218,6 @@ def dest_path_of (item: Path) -> Path:
 def src_files_with_suffix(suffix: str):
     return Path(src_root).glob('**/*' + suffix)
 
-
 # Determine list of Paths containing the comments (empty if none) for the item
 # I.e. all files matching <src_root> / <parent_folder> / *.mdc
 # - item: relative path to the item
@@ -602,38 +601,40 @@ def make_item(item,tmpdir,item_template):
     # replace destination only when real changes occured
     replace_when_changed(dest,dest_tmp)    
 
-# Return the template to use to process item: default if none specified
+# Return the template to use to process post: default if none specified
 # in the YAML header for item
-def post_template(item,default):
-    if item in post_metadata:
-        template = post_metadata[item][2]
+def post_template(post,default):
+    if post in post_metadata:
+        template = post_metadata[post][2]
         if template != '':
             return get_template(template)
     return get_template(default)
     
-
-# Make the html post from the md source specified by ost, merging
+# Make the html post from the md source specified by post, merging
 # in any comments
 def make_post(post,tmpdir):
     log(2,'Processing post')
     template = post_template(post,'ssst-post.html')
     make_item(post,tmpdir,template)
+
+# Return the template to use to process page: default if not found
+def page_template(page,default):
+    if str(page) == 'archives.sst':
+        template = get_template_or_default('ssst-archives.html',default)
+    elif str(page) == 'tags.sst':
+        template = get_template_or_default('ssst-tags.html',default)
+    elif str(page) == 'categories.sst':
+        template = get_template_or_default('ssst-categories.html',default)
+    else:
+        template = get_template(default)
+
     
 # Make the html page from the md source specified by page, merging
 # in any comments; pages include auto-generated content like archives, tags
 # and categories (with extension *.sst)
 def make_page(page,tmpdir):
     log(2,'Processing page')
-    if str(page) == 'archives.sst':
-        template = \
-          get_template_or_default('ssst-archives.html','ssst-page.html')
-    elif str(page) == 'tags.sst':
-        template = get_template_or_default('ssst-tags.html','ssst-page.html')
-    elif str(page) == 'categories.sst':
-        template = \
-          get_template_or_default('ssst-categories.html','ssst-page.html')
-    else:
-        template = get_template('ssst-page.html')
+    template = page_template(page,'ssst-page.html')
     make_item(page,tmpdir,template)
 
 # ---
@@ -831,7 +832,7 @@ grace_period = 60
 # Determine whether the item (given src and dest directories in the global
 # variables src_root and dest_root) should be remade: i.e. if the destination
 # does not exist, or when it is older than the source file or any of its
-# associated comments (within a certain grace period)
+# associated comments or media files (within a certain grace period)
 # - item: path to item
 # - returns: whether item is a workitem or not
 def is_workitem(item: Path) -> bool:
@@ -936,7 +937,7 @@ def make(item: Path):
     dest_folder = dest_folder_of(item)
     if dest_folder.exists():
         clean_folder(dest_folder)
-    # creata a temorary direcotry to work in; will be deleted when with closes
+    # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         make_comments(item,tmpdir)
         if is_post(item):
