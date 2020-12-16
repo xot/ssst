@@ -168,9 +168,15 @@ SSST generates the following output in the destination tree. All output is HTML 
   The conversion uses template `<templates>/ssst-page.html`.
 - The catalogue of all existing monthly archives is stored in
   `./archives.html`.
-  The conversion uses template `<templates>/ssst-page.html`.
+  The conversion uses template `<templates>/ssst-archives.html` if it exists, or `<templates>/ssst-page.html` otherwise.
+- The catalogue of all existing categories is stored in
+  `./categories.html`.
+  The conversion uses template `<templates>/ssst-categories.html` if it exists, or `<templates>/ssst-page.html` otherwise.
+- The catalogue of all existing tags is stored in
+  `./tags.html`.
+  The conversion uses template `<templates>/ssst-tags.html` if it exists, or `<templates>/ssst-page.html` otherwise.
 
-If a post or page contains a `template` key in its YAML header, the value for that key is used to override the default template (as described above).
+If a post contains a `template` key in its YAML header, the value for that key is used to override the default template (as described above).
 
 When generating posts or pages, any LaTeX equations (that are enclosed by $..$ in the markdown input) are automatically processed. Any equation that is 'too complex' to render natively (or any equation when specifying the `-g` or `--gladtex` option) will be converted using `pdflatex` and `pdf2svg`. The conversion process is controlled by a template `<templates>/ssst-eq.tex`, which should contain a complete LaTeX document, where the first occurance of `$$` is replace by the equation to convert. (The standard template uses the LaTeX standalone class.)
 

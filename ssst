@@ -263,6 +263,15 @@ def get_template(name: Path):
         error("Template %s not found" % template)
     return template
 
+# Return the full path for a template, throw error if it does not exist
+# - name: template file name to be found in the template directory
+# - default: default template file to be used if name does not exist
+def get_template_or_default(name: Path, default: Path):
+    template = templates / name        
+    if not template.exists():
+        return get_template(default)
+    return template
+
 # ---
 # OTHER FUNCTIONS
 # ---
@@ -582,7 +591,7 @@ def make_item(item,tmpdir,item_template):
 
 # Return the template to use to process item: default if none specified
 # in the YAML header for item
-def item_template(item,default):
+def post_template(item,default):
     if item in post_metadata:
         template = post_metadata[item][2]
         if template != '':
@@ -590,23 +599,29 @@ def item_template(item,default):
     return get_template(default)
     
 
-# Make the html post from the md source specified by item, merging
+# Make the html post from the md source specified by ost, merging
 # in any comments
 def make_post(post,tmpdir):
     log(2,'Processing post')
-    post_template = item_template(post,'ssst-post.html')
+    post_template = post_template(post,'ssst-post.html')
     make_item(post,tmpdir,post_template)
     
-# Make the html post from the md source specified by item, merging
-# in any comments
+# Make the html page from the md source specified by page, merging
+# in any comments; pages include auto-generated content like archives, tags
+# and categories (with extension *.sst)
 def make_page(page,tmpdir):
     log(2,'Processing page')
     if str(page) == 'archives.sst':
-        page_template = get_template('ssst-archives.html')
+        page_template = \
+          get_template_or_default('ssst-archives.html','ssst-page.html')
+    elif str(page) == 'tags.sst':
+        page_template = \
+          get_template_or_default('ssst-tags.html','ssst-page.html')
+    elif str(page) == 'categories.sst':
+        page_template = \
+          get_template_or_default('ssst-categories.html','ssst-page.html')
     else:
-        # FIXME: pages dont have an entry in post_metadata, so this will
-        # always return the default template ssst-page.html
-        page_template = item_template(page,'ssst-page.html')
+        page_template = get_template('ssst-page.html')
     make_item(page,tmpdir,page_template)
 
 # ---
