@@ -404,7 +404,6 @@ def process_posts ():
     # sort in decending order
     all_posts.sort(reverse=True,key=lambda entry: post_metadata[entry][0])
     
-        
 
 # ---
 # LaTeX EQUATIONS
@@ -536,7 +535,7 @@ def process_equations (fname):
         f.write(processed_html)
 
 # ---
-# MAKE POST / PAGE
+# MAKE ITEM
 # ---
 
 # return the path to next post (more recent) following item; '' if none
@@ -601,42 +600,7 @@ def make_item(item,tmpdir,item_template):
     # replace destination only when real changes occured
     replace_when_changed(dest,dest_tmp)    
 
-# Return the template to use to process post: default if none specified
-# in the YAML header for item
-def post_template(post,default):
-    if post in post_metadata:
-        template = post_metadata[post][2]
-        if template != '':
-            return get_template(template)
-    return get_template(default)
     
-# Make the html post from the md source specified by post, merging
-# in any comments
-def make_post(post,tmpdir):
-    log(2,'Processing post')
-    template = post_template(post,'ssst-post.html')
-    make_item(post,tmpdir,template)
-
-# Return the template to use to process page: default if not found
-def page_template(page,default):
-    if str(page) == 'archives.sst':
-        template = get_template_or_default('ssst-archives.html',default)
-    elif str(page) == 'tags.sst':
-        template = get_template_or_default('ssst-tags.html',default)
-    elif str(page) == 'categories.sst':
-        template = get_template_or_default('ssst-categories.html',default)
-    else:
-        template = get_template(default)
-
-    
-# Make the html page from the md source specified by page, merging
-# in any comments; pages include auto-generated content like archives, tags
-# and categories (with extension *.sst)
-def make_page(page,tmpdir):
-    log(2,'Processing page')
-    template = page_template(page,'ssst-page.html')
-    make_item(page,tmpdir,template)
-
 # ---
 # MAKE COMMENTS
 # ---
@@ -930,6 +894,26 @@ def clean_folder(folder: Path):
         if (not f.is_dir()) and (f.suffix != '.html'):
             os.remove(f)
 
+# Return the template to use to process post: default if none specified
+# in the YAML header for item
+def post_template(post,default):
+    if post in post_metadata:
+        template = post_metadata[post][2]
+        if template != '':
+            return get_template(template)
+    return get_template(default)
+
+# Return the template to use to process page: default if not found
+def page_template(page,default):
+    template = default
+    if str(page) == 'archives.sst':
+        template = 'ssst-archives.html'
+    elif str(page) == 'tags.sst':
+        template = 'ssst-tags.html'
+    elif str(page) == 'categories.sst':
+        template = 'ssst-categories.html'
+    return get_template_or_default(template,default)
+
 # Make the output (in dest_root) for the item (from src_root)
 def make(item: Path):
     log(1,'Processing ' + str(src_path_of(item)))
@@ -941,9 +925,12 @@ def make(item: Path):
     with tempfile.TemporaryDirectory() as tmpdir:
         make_comments(item,tmpdir)
         if is_post(item):
-            make_post(item,tmpdir)
+            log(2,'Processing post')
+            template = post_template(item,'ssst-post.html')
         else:
-            make_page(item,tmpdir)
+            log(2,'Processing page')
+            template = page_template(item,'ssst-page.html')
+        make_item(item,tmpdir,template)
     copy_media(item)
 
 # ---
