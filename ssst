@@ -365,13 +365,15 @@ def process_post_metadata(post: Path):
         title = yaml['title']
     else:
         title = ''
-        warning('Title expected but not found in ' + str(post) + '. Using empty title.')
+        warning('Title expected but not found in ' + str(post) + \
+                '. Using empty title.')
     if 'date' in yaml: 
         tmp = yaml['date']
         date = parse_date(tmp)
     else:
         date = datetime.date.today()
-        warning('Date expected but not found in ' + str(post) + '. Using today.')
+        warning('Date expected but not found in ' + str(post) + \
+                '. Using today.')
     if 'template' in yaml:
         template = yaml['template']
     else:
@@ -633,7 +635,7 @@ def fold_comments(path):
 # - first convert individual comments to html in tmpdir
 # - then fold them into one html file (keeping the hierarchical order)
 # Stores the result in tmpdir/comments.html for further processing
-# by make post (this file is empty if there are no comments)
+# by make (this file is empty if there are no comments)
 def make_comments(item,tmpdir):
     log(2,'Processing comments')
     commentfiles = commentfiles_for(item)
@@ -769,7 +771,9 @@ def dump_archives():
                     archivef.write('\n## ' + str(archive_year) + '\n')
                 # write a link to this new archive to the main archive file
                 archivef.write('- [' + monthyear +'](' + \
-                               item_url(Path(archive_relative_path),Path('archives.sst')) + ')\n' )
+                               item_url(Path(archive_relative_path),\
+                                        Path('archives.sst')) + \
+                               ')\n' )
                 # create a new delayed file for this monthly archive
                 log(3,'Creating new monthly archive ' + str(archive_path))
                 outf = DelayedTextfile(archive_path)
@@ -930,6 +934,8 @@ def make(item: Path):
         else:
             log(2,'Processing page')
             template = page_template(item,'ssst-page.html')
+        # make the item using the specified template, merging in comments
+        # in tmpdir
         make_item(item,tmpdir,template)
     copy_media(item)
 
