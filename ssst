@@ -96,11 +96,11 @@ dest_root_changes = []
 
 # Dictionary of all tags and relative pathnames for the posts with those tags
 # (filled by process_posts -> process_post_metadata) 
-items_with_tag = {}
+posts_with_tag = {}
 
 # Dictionary of all categories relative pathnames for the posts with those categories
 # (filled by process_posts -> process_post_metadata) 
-items_with_cat = {}
+posts_with_cat = {}
 
 # Dictionary of all posts metadata (as tuples (date,title,template)) indexed
 # by the relative pathname for the post
@@ -308,8 +308,8 @@ def normalize_date(date: datetime.date) -> str:
 # and add its  pathname to the necessary categories and tag dictionaries
 # - post : full pathname to the post to process
 def process_post_metadata(post: Path):
-    global items_with_tag
-    global items_with_cat
+    global posts_with_tag
+    global posts_with_cat
     global post_metadata
     log(2,'Processing categories and tags for ' + str(post))
     yaml = get_yaml_dict(post)
@@ -326,9 +326,9 @@ def process_post_metadata(post: Path):
             # but written to the same external tag file if the filesystem
             # is case-insensitive; one overwrting the other!!!
             cat = cat.lower()
-            if cat not in items_with_cat:
-                items_with_cat[cat] = []
-            items_with_cat[cat].append(post_relpath)
+            if cat not in posts_with_cat:
+                posts_with_cat[cat] = []
+            posts_with_cat[cat].append(post_relpath)
     if 'keywords' in yaml:
         tags = yaml['keywords']
         log(3,'Tags: ' + str(tags))
@@ -337,9 +337,9 @@ def process_post_metadata(post: Path):
             tags = [ tags ]
         for tag in tags:
             tag = tag.lower()
-            if tag not in items_with_tag:
-                items_with_tag[tag] = []
-            items_with_tag[tag].append(post_relpath)
+            if tag not in posts_with_tag:
+                posts_with_tag[tag] = []
+            posts_with_tag[tag].append(post_relpath)
     if 'title' in yaml:
         title = yaml['title']
     else:
@@ -370,7 +370,7 @@ def is_post(item: Path) -> bool:
 # Collect all metadata about all posts (like tags and categories, but also
 # title and date for all blog entries) in the source tree. This initializes
 # the following global variables:
-# items_with_cat, items_with_tag, post_metadata and all_posts
+# posts_with_cat, posts_with_tag, post_metadata and all_posts
 def process_posts ():
     log(0,'Processing posts.')
     # Find all posts (they have suffix .md) and process their metadata
@@ -711,10 +711,10 @@ def dump_cats_and_tags():
         catsf.write("---\n")
         catsf.write("title: 'Categories'\n")
         catsf.write("---\n\n")
-        for cat in sorted(list(items_with_cat)):
+        for cat in sorted(list(posts_with_cat)):
             cat_pathname = Path('category/' + cat + '/index.sst')
             catsf.write('- [' + cat + '](' + item_url(cat_pathname,'.') + ')\n')
-            dump(cat_pathname,'Category',cat,items_with_cat[cat])
+            dump(cat_pathname,'Category',cat,posts_with_cat[cat])
     tags_pathname = src_path_of('tags.sst')
     # DelayedTextfile will be written to disk when with closes
     # (and contents really chagned)
@@ -722,10 +722,10 @@ def dump_cats_and_tags():
         tagsf.write("---\n")
         tagsf.write("title: 'Tags'\n")
         tagsf.write("---\n\n")
-        for tag in sorted(list(items_with_tag)):
+        for tag in sorted(list(posts_with_tag)):
             tag_pathname = Path('tag/' + tag + '/index.sst')
             tagsf.write('- [' + tag + '](' + item_url(tag_pathname,'.') + ')\n')
-            dump(tag_pathname,'Tag',tag,items_with_tag[tag])
+            dump(tag_pathname,'Tag',tag,posts_with_tag[tag])
 
 # return a sort key for an entry such that entries are sorted
 # by decreasing year, but increasing month and day
@@ -1083,8 +1083,8 @@ if logname != '':
 
 # first collect all metadate (like tags and categories, but also title and date
 # for all blog entries (posts and pages) in the source tree. This initializes
-# - items_with_cat
-# - items_with_tag
+# - posts_with_cat
+# - posts_with_tag
 # - post_metadata
 # - all_posts (essentially the tags of post_metadata, but sorted by date)
 process_posts()
