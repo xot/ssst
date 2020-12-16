@@ -225,6 +225,19 @@ def src_files_with_suffix(suffix: str):
 def commentfiles_for (item: Path):
     return (src_root / item.parent).glob('*.mdc')
 
+# Suffix of media files that will automatically be copied from the source
+# folder to the destination folder
+media_types = ['jpg','gif','pdf','png']
+
+# Determine list of Paths containing the mediafiles (empty if none) for the item
+# I.e. all files matching <src_root> / <parent_folder> / <mediatypes>
+# - item: relative path to the item
+def mediafiles_for (item: Path):
+    res = []
+    for tp in media_types:
+        res = res + list((src_root / item.parent).glob('*.' + tp))
+    return res
+
 # Return path pointing to the root for the current item on the hosting site.
 # This is either a relative path back to the root from the path containing the
 # item, or simply hosting_root if set to non-empty on the command line 
@@ -603,8 +616,8 @@ def post_template(item,default):
 # in any comments
 def make_post(post,tmpdir):
     log(2,'Processing post')
-    post_template = post_template(post,'ssst-post.html')
-    make_item(post,tmpdir,post_template)
+    template = post_template(post,'ssst-post.html')
+    make_item(post,tmpdir,template)
     
 # Make the html page from the md source specified by page, merging
 # in any comments; pages include auto-generated content like archives, tags
@@ -612,17 +625,16 @@ def make_post(post,tmpdir):
 def make_page(page,tmpdir):
     log(2,'Processing page')
     if str(page) == 'archives.sst':
-        page_template = \
+        template = \
           get_template_or_default('ssst-archives.html','ssst-page.html')
     elif str(page) == 'tags.sst':
-        page_template = \
-          get_template_or_default('ssst-tags.html','ssst-page.html')
+        template = get_template_or_default('ssst-tags.html','ssst-page.html')
     elif str(page) == 'categories.sst':
-        page_template = \
+        template = \
           get_template_or_default('ssst-categories.html','ssst-page.html')
     else:
-        page_template = get_template('ssst-page.html')
-    make_item(page,tmpdir,page_template)
+        template = get_template('ssst-page.html')
+    make_item(page,tmpdir,template)
 
 # ---
 # MAKE COMMENTS
@@ -836,12 +848,13 @@ def is_workitem(item: Path) -> bool:
     if (dest_time <= src_time - grace_period) :
         log(4,'Destination older than source.')
         return True
-    # check whether destination is older than any comment in the source
-    comments = commentfiles_for(item)
-    for comment in comments:
-        log(4,'Comment found: ' + str(comment))
-        comment_time = os.path.getmtime(comment)
-        if (dest_time <= comment_time - grace_period):
+    # check whether destination is older than any comment or mediafile
+    # in the source
+    files = list(commentfiles_for(item)) + mediafiles_for(item)
+    for file in files:
+        log(4,'Additional file found: ' + str(file))
+        file_time = os.path.getmtime(file)
+        if (dest_time <= file_time - grace_period):
             log(4,'Destination older than comment in source.')
             return True
     return False
@@ -896,21 +909,15 @@ def worklist ():
 # MAKE
 # ---
 
-# Suffix of media files that will automatically be copied from the source
-# folder to the destination folder
-media_types = ['jpg','gif','pdf','png']
-
 # Copy all media associated with an item, keeping their metadata.
 # - item: path to item in the source tree
 def copy_media(item: Path):
     log(2,'Copying mediafiles')
-    src_folder = src_folder_of(item)
     dest_folder = dest_folder_of(item)
-    for t in media_types:
-        for f in src_folder.glob('*.' + t):
-            log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
-            dest_root_changes.append(f)
-            shutil.copy2(f,dest_folder) # keep metadata
+    for f in mediafiles_for(item):
+        log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
+        dest_root_changes.append(f)
+        shutil.copy2(f,dest_folder) # keep metadata
 
 # Remove all non html files (not diretories) from a folder
 # (Keep the html file because that will be remade, and we want to check
