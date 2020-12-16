@@ -921,9 +921,10 @@ def page_template(page,default):
 # Make the output (in dest_root) for the item (from src_root)
 def make(item: Path):
     log(1,'Processing ' + str(src_path_of(item)))
-    # Clean the destination folder
+    # Clean the destination folder (only for posts that are guaranteed
+    # have separate folders!)
     dest_folder = dest_folder_of(item)
-    if dest_folder.exists():
+    if (is_post() and dest_folder.exists()):
         clean_folder(dest_folder)
     # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
