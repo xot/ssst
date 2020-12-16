@@ -59,10 +59,6 @@ src_root = Path('./src')
 # Path to the root of the destination files tree
 dest_root = Path('./public')
 
-# List of all files in dest_root that changed in the process
-dest_root_changes = []
-
-
 # Root where the site is hosted
 # (relative adressing, making the whole site relocatable, is the default)
 hosting_root = ''
@@ -88,6 +84,16 @@ keep_simple_eqs = False
 # Lenght of summaries (including YAML header)
 summary_length = 20
 
+# logfile name
+logfile = None 
+
+# ---
+# OTHER GLOBAL VARIABLES
+# ---
+
+# List of all files in dest_root that changed in the process
+dest_root_changes = []
+
 # Dictionary of all tags and relative pathnames for the posts with those tags
 # (filled by process_posts -> process_post_metadata) 
 items_with_tag = {}
@@ -104,9 +110,6 @@ post_metadata = {}
 # List of all relative pathnames for posts, sorted by date (most recent first)
 # (with the help of process_posts)
 all_posts = []
-
-# logfile
-logfile = None 
 
 # ---
 # ERRORS / LOGGING
@@ -205,7 +208,7 @@ def dest_folder_of(item: Path) -> Path:
 # Return the full destination path for the html file to be generated
 # for the item
 # - item: relative path to the item
-def dest_of (item: Path) -> Path:
+def dest_path_of (item: Path) -> Path:
     dest = dest_root / item
     return dest.with_suffix('.html')
 
@@ -558,7 +561,7 @@ def make_item(item,tmpdir,item_template):
             ' --metadata date="' + normalize_date(date) + '"' 
     # build the command string
     src = src_path_of(item)
-    dest = dest_of(item)
+    dest = dest_path_of(item)
     dest_tmp = dest.with_suffix('.tmp')
     if use_gladtex:
         gladtex_str = ' --gladtex '
@@ -794,7 +797,7 @@ def dump_archives():
 # DETERMINE WORKLIST
 # ---
 
-# Minimum amount of seconds difference between destination and source m
+# Minimum amount of seconds difference between destination and source 
 # modification time before an item will be considered a workitem
 grace_period = 60
     
@@ -806,12 +809,12 @@ grace_period = 60
 # - returns: whether item is a workitem or not
 def is_workitem(item: Path) -> bool:
     # check whether destination exists
-    dest = dest_of(item)
+    dest = dest_path_of(item)
     log(4,'Destination should be ' + str(dest))
     if not dest.exists():
         return True
     log(4,'Destination exists.')
-    # check whetehr destination is older than source
+    # check whether destination is older than source
     src = src_path_of(item)
     src_time = os.path.getmtime(src)
     dest_time = os.path.getmtime(dest)
@@ -855,6 +858,9 @@ def worklist ():
     log(0,'Determining files to process...')
     # determine all .md files that need to be made
     list = worklist_for('.md')
+    # remove <src_root>/index.md which is made separetely with make_home()
+    if Path('index.md') in list:
+        list.remove(Path('index.md'))
     extended_list = list.copy()
     # insert any "neighbours" of posts in the worklist as well, to ensure
     # that their next and prev links are updated
@@ -867,8 +873,6 @@ def worklist ():
         if (next != '') and (next not in extended_list):
             extended_list.append(next)
     # add all *.sst files that need to be made
-    # FIXME: this may include ./index.sst which is always made separetely
-    # with make_home()
     final_list = extended_list + worklist_for('.sst')
     log(0,str(len(final_list)) + ' files to process found.')
     return final_list
@@ -944,12 +948,16 @@ def substitute_localpath(matchobj) -> str:
         return(prefix + localpath_replacement + name + '"')
 
 
-# Summarasise a post and write the summary to a file. Summary is generated using
-# pandoc with <templates>/ssst-summary-entry.html as template. (Note: make
-# sure that this template does NOT generate a standalone HTML document; it is
-# included in another page).
+# Summarise a post and write the summary to a file. Summary is generated using
+# pandoc with <templates>/ssst-summary-entry.html as template. The length of
+# the summary is determined by 'summary_length' (-z option). Fixes any links to
+# media in the directory containing the post) by replacing them with their full
+# path from the root of the destination tree (where the home page is where this
+# summary will be included)
+# (Note: make sure that this template does NOT generate a standalone HTML
+# document; it is included in another page).
 # - post: post to summarise
-# - fname: name of file to store summery in
+# - fname: name of file to store summary in
 def summarize_post(post: Path, fname: str):
     global localpath_replacement
     date = post_metadata[post][0]
@@ -982,7 +990,7 @@ def summarize_post(post: Path, fname: str):
     
 # Make the home page, containing a summary of the five most revent posts
 # Home page is generated using pandoc, with <templates>/ssst-homepage.html
-# as template and <src>/index.sst as markdown input
+# as template and <src>/index.md as markdown input
 def make_home():
     log(0,'Making home page.')
     # get the 5 most recent posts 
@@ -999,14 +1007,15 @@ def make_home():
             summarize_post(post,summary_name)
             # and add this to the files to append when making the home page
             pandoc_append_str = pandoc_append_str + ' -A ' + summary_name 
-        # create the home page, including the summarized entries    
-        # any content in <src>/index.sst will be prepended before the summarised
-        # posts; in particular its metadata determine the title and subtitle
+        # Create the home page, including the summarized entries.    
+        # Any content in <src_path>/index.md will be prepended before the
+        # summarised posts; in particular its metadata determine the title
+        # and subtitle
         summary_template = get_template('ssst-homepage.html')
-        src = src_path_of('index.sst')
+        src = src_path_of('index.md')
         if not src.exists():
           error('Home page input %s does not exist.' % src)
-        dest = dest_of('index.html')
+        dest = dest_path_of('index.html')
         dest_tmp = dest.with_suffix('.tmp')
         # set the pandoc command string
         command = 'pandoc -s -f markdown -t html --template=' + \
