@@ -928,7 +928,7 @@ def make(item: Path):
     # Clean the destination folder (only for posts that are guaranteed
     # have separate folders!)
     dest_folder = dest_folder_of(item)
-    if (is_post() and dest_folder.exists()):
+    if (is_post(item) and dest_folder.exists()):
         clean_folder(dest_folder)
     # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
