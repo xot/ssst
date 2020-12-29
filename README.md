@@ -4,7 +4,7 @@ A simple static site tool to maintain websites based on markdown and pandoc
 
 # Description
 
-Given a set of posts or pages written in markdown, SSST generates the corresponding HTML files as well as any monthly archives, tag and category files. It also generates a home page summarising recent posts, and a main archive file linking to all existing monthly archives.
+Given a set of posts or pages written in markdown, SSST generates the corresponding HTML files as well as any monthly archives, tag and category files. It also generates a home page summarising recent posts, a main archive file linking to all existing monthly archives, and an RSS feed containing a summary of the last few posts.
 
 Depending in the actual structure of the source tree, SSST mimics the directory structure typically used in WordPress hosted sites. This allows one to use SSST to create a static replacement for a site that was previously managed using WordPress, ensuring that any external links that point to a page remain functional. (At the moment this structure, where paths to posts look like `./yyyy/mm/dd`, is pretty much assumed by SSST.)
 
@@ -175,6 +175,9 @@ SSST generates the following output in the destination tree. All output is HTML 
 - The catalogue of all existing tags is stored in
   `./tags.html`.
   The conversion uses template `<templates>/ssst-tags.html` if it exists, or `<templates>/ssst-page.html` otherwise.
+- The RSS feed is stored in 
+  `./feed/index.html`. 
+  The conversion uses template `<templates>/ssst-rss.html` for the  main feed and `<templates>/ssst-rss-entry.html` to generate individual feed items.
 
 If a post contains a `template` key in its YAML header, the value for that key is used to override the default template (as described above).
 
