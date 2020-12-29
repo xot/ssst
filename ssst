@@ -1078,6 +1078,11 @@ def make_rss_feed():
     log(0,'Making RSS feed.')
     # get the 10 most recent posts 
     recent_posts = all_posts[0:10]
+    # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
+    # FIXME: date is 'naive' so timezone cannot be determined
+    # (and %Z does not work)
+    now = datetime.datetime.today()
+    datestr = now.strftime("%a, %d %b %Y %H:%M:%S GMT")
     # creata a temorary direcotry to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
@@ -1106,6 +1111,7 @@ def make_rss_feed():
             str(rss_template) + \
             pandoc_append_str + \
             ' --metadata root=' + str(item_root(Path('index.html'))) + \
+            ' --metadata date="' + datestr + '"' + \
             ' -o '+ str(dest_tmp) + ' ' + str(src)
         run_shell_command(command)
         # replace file containing the home page only if its contents changed
