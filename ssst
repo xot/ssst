@@ -371,10 +371,13 @@ def process_post_metadata(post: Path):
     if 'date' in yaml: 
         tmp = yaml['date']
         date = parse_date(tmp)
+        dateprefix = date.strftime("%Y/%m/%d")
+        poststr = str(item_relpath(post))
+        if not poststr.startswith(dateprefix):
+            warning('Date ' + dateprefix + ' in ' + str(post) + \
+                    ' does not correspond with its path.')
     else:
-        date = datetime.date.today()
-        warning('Date expected but not found in ' + str(post) + \
-                '. Using today.')
+        error('Date expected but not found in ' + str(post))
     if 'template' in yaml:
         template = yaml['template']
     else:
@@ -1078,10 +1081,8 @@ def make_rss_feed():
     log(0,'Making RSS feed.')
     # get the 10 most recent posts 
     recent_posts = all_posts[0:10]
-    # get the current date and time
-    now = datetime.datetime.today()
-    # set the timezone
-    now = now.astimezone(ZoneInfo('UTC'))
+    # get the current date and time and set the timezone
+    now = datetime.datetime.today().astimezone(ZoneInfo('UTC'))
     # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
     datestr = now.strftime("%a, %d %b %Y %H:%M:%S %z")
     # creata a temorary direcotry to work in; will be deleted when with closes
@@ -1097,16 +1098,16 @@ def make_rss_feed():
             # and add this to the files to append when making the home page
             pandoc_append_str = pandoc_append_str + ' -A ' + rss_feed_name 
         # Create the RSS feed, including the summarized entries.    
-        # The metadata in <src_path>/index.md willdetermine the title
+        # The metadata in <src_path>/index.md will determine the title
         # and subtitle
         rss_template = get_template('ssst-rss.html')
         src = src_path_of('index.md')
         if not src.exists():
           error('Home page input %s does not exist.' % src)
-        # create feed folder if it doesnt exist yet
-        os.makedirs(dest_folder_of(Path('feed/index.html')), exist_ok=True)
         dest = dest_path_of('feed/index.html')
         dest_tmp = dest.with_suffix('.tmp')
+        # create feed folder if it doesnt exist yet
+        os.makedirs(dest.parent, exist_ok=True)
         # set the pandoc command string
         command = 'pandoc -s -f markdown -t html --template=' + \
             str(rss_template) + \

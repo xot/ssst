@@ -6,7 +6,7 @@ A simple static site tool to maintain websites based on markdown and pandoc
 
 Given a set of posts or pages written in markdown, SSST generates the corresponding HTML files as well as any monthly archives, tag and category files. It also generates a home page summarising recent posts, a main archive file linking to all existing monthly archives, and an RSS feed containing a summary of the last few posts.
 
-Depending in the actual structure of the source tree, SSST mimics the directory structure typically used in WordPress hosted sites. This allows one to use SSST to create a static replacement for a site that was previously managed using WordPress, ensuring that any external links that point to a page remain functional. (At the moment this structure, where paths to posts look like `./yyyy/mm/dd`, is pretty much assumed by SSST.)
+Depending in the actual structure of the source tree, SSST mimics the directory structure typically used in WordPress hosted sites. This allows one to use SSST to create a static replacement for a site that was previously managed using WordPress, ensuring that any external links that point to a page remain functional. (This structure, where paths to posts look like `./yyyy/mm/dd`, is assumed by SSST, and used to distinguish *posts* from *pages*.)
 
 The conversion is driven by `pandoc`, using template files (that can be changed to customise website layout).
 
@@ -118,9 +118,9 @@ post content
 The source tree should be structured as follows
 
 - The root of the source tree should contain a file `./index.md` which drives the generation of the home page (see below). 
-- Pages are stored in folders with the following structure
+- *Pages* are stored in folders with the following structure
   `./<optional path>/title.md`
-- Posts are stored in folders with the following structure
+- *Posts* are stored in folders with the following structure
   `./yyyy/mm/dd/title/index.md`.
   Make sure the date inside the post is correct!
 - Comments are stored in the folder containing the posts they belong to
@@ -203,3 +203,6 @@ This is a program written in Python (version 3), and depends on
 - [PyYaml](https://pyyaml.org) to parse YAML headers.
 - The Unix `head` command, to summarise posts.
 
+# Implementation notes
+
+- 
