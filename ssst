@@ -720,8 +720,13 @@ def dump_cats_and_tags():
         tagsf.write("---\n")
         tagsf.write("title: 'Tags'\n")
         tagsf.write("---\n\n")
+        firstchar = ''
         for tag in sorted(list(posts_with_tag)):
             tag_pathname = Path('tag/' + tag + '/index.sst')
+            # output a header for each alphabetical change
+            if firstchar != tag[0]:
+                firstchar = tag[0]
+                tagsf.write('\n\n# ' + firstchar.upper() + '\n\n') 
             tagsf.write('- [' + tag + '](' + item_url(tag_pathname,'.') + ')\n')
             dump(tag_pathname,'Tag',tag,posts_with_tag[tag])
 
