@@ -1044,6 +1044,73 @@ def make_home():
         # replace file containing the home page only if its contents changed
         replace_when_changed(dest,dest_tmp)    
 
+
+# Summarise a post and write the summary to a file. Summary is generated using
+# pandoc with <templates>/ssst-rss-entry.html as template. The length of
+# the summary is determined by 'summary_length' (-z option). 
+# (Note: make sure that this template does NOT generate a standalone HTML
+# document; it is included in another page).
+# - post: post to summarise
+# - fname: name of file to store summary in
+def rss_feed_post(post: Path, fname: str):
+    global localpath_replacement
+    date = post_metadata[post][0]
+    # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
+    # FIXME: date is 'naive' so timezone cannot be determined
+    # (and %Z does not work)
+    datestr = date.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    # create a URL for the  post to be summarised
+    post_url = item_url(post,Path('index.html'))
+    post_path = src_path_of(post)                    
+    rss_entry_template = get_template('ssst-rss-entry.html')
+    # set the pandoc command string
+    command = 'head -n ' + str(summary_length) + ' ' + str(post_path) + \
+            ' | pandoc -s -f markdown --template=' + str(rss_entry_template) + \
+        ' --metadata entrydate="' + datestr + '"' + \
+        ' --metadata root="' + str(item_root(Path('index.html'))) + '"' + \
+        ' --metadata path="' + post_url + '"' + \
+        ' -o '+ str(fname)
+    run_shell_command(command)
+
+        
+# Make the RSS feed
+def make_rss_feed():
+    log(0,'Making RSS feed.')
+    # get the 10 most recent posts 
+    recent_posts = all_posts[0:10]
+    # creata a temorary direcotry to work in; will be deleted when with closes
+    with tempfile.TemporaryDirectory() as tmpdir:
+        count = 0
+        # string keeping track of which temporary rss feed file to include later
+        pandoc_append_str = ''
+        for post in recent_posts:
+            # create a temporary html file summarizing this entry for rss
+            count = count + 1
+            rss_feed_name = tmpdir + '/rss_feed.' + str(count) + '.html'
+            rss_feed_post(post,rss_feed_name)
+            # and add this to the files to append when making the home page
+            pandoc_append_str = pandoc_append_str + ' -A ' + rss_feed_name 
+        # Create the RSS feed, including the summarized entries.    
+        # The metadata in <src_path>/index.md willdetermine the title
+        # and subtitle
+        rss_template = get_template('ssst-rss.html')
+        src = src_path_of('index.md')
+        if not src.exists():
+          error('Home page input %s does not exist.' % src)
+        # create feed folder if it doesnt exist yet
+        os.makedirs(dest_folder_of(Path('feed/index.html')), exist_ok=True)
+        dest = dest_path_of('feed/index.html')
+        dest_tmp = dest.with_suffix('.tmp')
+        # set the pandoc command string
+        command = 'pandoc -s -f markdown -t html --template=' + \
+            str(rss_template) + \
+            pandoc_append_str + \
+            ' --metadata root=' + str(item_root(Path('index.html'))) + \
+            ' -o '+ str(dest_tmp) + ' ' + str(src)
+        run_shell_command(command)
+        # replace file containing the home page only if its contents changed
+        replace_when_changed(dest,dest_tmp)    
+        
 # ---
 # MAIN
 # ---
@@ -1120,6 +1187,9 @@ for item in worklist():
 
 # create the home page containing a summary of the most recent posts
 make_home()
+
+# create the rss feed
+make_rss_feed()
 
 # report about all changed files
 
