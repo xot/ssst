@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+>
+  <channel>
+    <title>$title$ $if(subtitle)$$subtitle$$endif$</title>
+    <link>http://www.yourwebsite.com/</link>
+    <description>This is the description of your Feed. 
+      Keep it to one or two sentences.
+    </description>
+    <lastBuildDate>$date$</lastBuildDate>
+    <language>en</language>
+    <sy:updatePeriod>daily</sy:updatePeriod>
+    <sy:updateFrequency>1</sy:updateFrequency>
+$for(include-after)$
+$include-after$
+$endfor$    
+  </channel>
+</rss>
