@@ -9,6 +9,7 @@
 import argparse, sys, os, re, tempfile, subprocess, shutil, datetime, yaml, filecmp
 from pathlib import Path
 from io import StringIO
+from zoneinfo import ZoneInfo
 
 # ---
 # DelayedTextfile
@@ -1056,9 +1057,8 @@ def rss_feed_post(post: Path, fname: str):
     global localpath_replacement
     date = post_metadata[post][0]
     # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
-    # FIXME: date is 'naive' so timezone cannot be determined
-    # (and %Z does not work)
-    datestr = date.strftime("%a, %d %b %Y %H:%M:%S +0000")
+    # (Note that post_metadata[post][0] contains only a date, and not a time) 
+    datestr = date.strftime("%a, %d %b %Y 00:00:00 +0000")
     # create a URL for the  post to be summarised
     post_url = item_url(post,Path('index.html'))
     post_path = src_path_of(post)                    
@@ -1078,11 +1078,12 @@ def make_rss_feed():
     log(0,'Making RSS feed.')
     # get the 10 most recent posts 
     recent_posts = all_posts[0:10]
-    # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
-    # FIXME: date is 'naive' so timezone cannot be determined
-    # (and %Z does not work)
+    # get the current date and time
     now = datetime.datetime.today()
-    datestr = now.strftime("%a, %d %b %Y %H:%M:%S +0000")
+    # set the timezone
+    now = now.astimezone(ZoneInfo('UTC'))
+    # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
+    datestr = now.strftime("%a, %d %b %Y %H:%M:%S %z")
     # creata a temorary direcotry to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
