@@ -217,7 +217,7 @@ def add(src_root,post):
             outf.write(content)
         
 # Set up arguments parsing
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description='SSST-add. Add a post to a SSST managed blog.')
 parser.add_argument("post", help="Filename of post to add")
 parser.add_argument("-s", "--source", default=src_root,
                     help="Path to the root of the source files tree")

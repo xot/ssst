@@ -1140,7 +1140,7 @@ def make_rss_feed():
 # ---
 
 # Set up arguments parsing
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description='SSST. A simple static site tool to maintain websites based on markdown and pandoc.')
 parser.add_argument('-s', '--source', default=src_root,
                     help='Path to the root of the source files tree')
 parser.add_argument('-d', '--destination', default=dest_root,
