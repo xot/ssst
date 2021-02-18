@@ -726,7 +726,7 @@ def dump_cats_and_tags():
             # output a header for each alphabetical change
             if firstchar != tag[0]:
                 firstchar = tag[0]
-                tagsf.write('\n\n# ' + firstchar.upper() + '\n\n') 
+                tagsf.write('\n\n## ' + firstchar.upper() + '\n\n') 
             tagsf.write('- [' + tag + '](' + item_url(tag_pathname,'.') + ')\n')
             dump(tag_pathname,'Tag',tag,posts_with_tag[tag])
 
