@@ -6,7 +6,7 @@
 #
 # Author: Jaap-henk Hoepman (jhh@xs4all.nl)
 
-import argparse, sys, os, re, tempfile, subprocess, shutil, datetime, yaml, filecmp
+import argparse, sys, os, re, tempfile, subprocess, shutil, datetime, yaml, filecmp, stat
 from pathlib import Path
 from io import StringIO
 from zoneinfo import ZoneInfo
@@ -320,6 +320,20 @@ def parse_date (s) -> datetime.date:
 def normalize_date(date: datetime.date) -> str:
     # we do NOT want zero-padding on days
     return date.strftime("%B ") + str(date.day) + ', ' + str(date.year)
+
+# Minimum amount of milliseconds difference between destination and source 
+# modification time before an item will be considered older (and hence a
+# workitem)
+
+grace_period = 10
+
+# Check whether dest is older than src
+# - dest
+# - src
+def is_older(dest,src: Path):
+    dtime = os.stat(dest)[stat.ST_MTIME]
+    stime = os.stat(src)[stat.ST_MTIME]
+    return dtime < (stime - grace_period)
 
 # ---
 # PROCESS POSTS
@@ -802,10 +816,6 @@ def dump_archives():
 # DETERMINE WORKLIST
 # ---
 
-# Minimum amount of seconds difference between destination and source 
-# modification time before an item will be considered a workitem
-grace_period = 60
-    
 # Determine whether the item (given src and dest directories in the global
 # variables src_root and dest_root) should be remade: i.e. if the destination
 # does not exist, or when it is older than the source file or any of its
@@ -821,9 +831,7 @@ def is_workitem(item: Path) -> bool:
     log(4,'Destination exists.')
     # check whether destination is older than source
     src = src_path_of(item)
-    src_time = os.path.getmtime(src)
-    dest_time = os.path.getmtime(dest)
-    if (dest_time <= src_time - grace_period) :
+    if is_older(dest,src):
         log(4,'Destination older than source.')
         return True
     # check whether destination is older than any comment or mediafile
@@ -831,8 +839,7 @@ def is_workitem(item: Path) -> bool:
     files = list(commentfiles_for(item)) + mediafiles_for(item)
     for file in files:
         log(4,'Additional file found: ' + str(file))
-        file_time = os.path.getmtime(file)
-        if (dest_time <= file_time - grace_period):
+        if is_older(dest,file):
             log(4,'Destination older than comment in source.')
             return True
     return False
