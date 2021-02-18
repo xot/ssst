@@ -73,6 +73,9 @@ loglevel = -1
 # Force remaking all files
 force = False 
 
+# Overwrite files even when contents are unchanged
+overwrite = False 
+
 # Use pandoc --gladtex to process LaTeX equations
 use_gladtex = False
 
@@ -296,6 +299,7 @@ def get_template_or_default(name: Path, default: Path):
 # - update: file containing new content
 def replace_when_changed (current: Path, update: Path):
     if (not current.exists()) or \
+       overwrite or \
        (not filecmp.cmp(current,update,shallow=False)): 
         log(5,'File changed ' + str(current))
         dest_root_changes.append(current)
@@ -1159,6 +1163,8 @@ parser.add_argument('-p', '--pedantic', default = False, action='store_true',
                     help='Abort after warning')
 parser.add_argument('-z', '--summarylength', default=summary_length,
                     help='Number of lines in post (including YAML header) to include in a summary')
+parser.add_argument('-o', '--overwrite', default = False, action='store_true',
+                    help='Overwrite files even when contents unchanged')
 
 args = parser.parse_args()
 
@@ -1175,6 +1181,7 @@ if not templates.exists():
     error('Templates directory %s does not exist.' % templates)
 loglevel = int(args.verbosity)
 force = args.force
+overwrite = args.overwrite
 use_gladtex = args.gladtex
 pedantic = args.pedantic
 keep_simple_eqs = args.keepsimple
