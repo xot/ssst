@@ -36,7 +36,7 @@ pedantic = False
 # Outpur the error message, and log it when required. Then exit
 # - msg: the error message
 def error(msg: str):
-    m = "ssst-replacetag: error: %s\n" % str(msg)
+    m = 'ssst-replacetag: error: %s\n' % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -46,7 +46,7 @@ def error(msg: str):
 # Exit when pedantic processing was specified.
 # - msg: the warning message
 def warning(msg: str):
-    m = "ssst-replacetag: warning: %s\n" % str(msg)
+    m = 'ssst-replacetag: warning: %s\n' % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -85,7 +85,7 @@ def src_files_with_suffix(suffix: str):
 
 def get_yaml_dict(src: Path):
     try:
-        with open(src,"r") as f:
+        with open(src,'r') as f:
             yamls = yaml.load_all(f,Loader=yaml.SafeLoader)
             for y in yamls:
                 return y
@@ -104,13 +104,13 @@ def replace_yaml_header(item: Path, yaml_header):
     # copy the post to its destination, replacing the yaml
     # block with the one with the correct keywords
     if backup:
-        shutil.copy2(item,str(item) + ".bak")
-    with open(item,"r") as inf:
+        shutil.copy2(item,str(item) + '.bak')
+    with open(item,'r') as inf:
         s = inf.read()
         # the content is after the second occurance of the
         # YAML separator '---'
-        content = s.split("---",maxsplit=2)[2]
-    with open(str(item),"w") as outf:
+        content = s.split('---',maxsplit=2)[2]
+    with open(str(item),'w') as outf:
         yaml.dump(yaml_header,outf,explicit_start=True)
         outf.write('---\n')
         outf.write(content)
@@ -122,7 +122,7 @@ def process_post (item: Path ,keyword: str ,replacement: str):
     yaml_header = get_yaml_dict(item)
     # warn for missing or unknown keywords/tags
     if not 'keywords' in yaml_header:
-        warning("Post is missing a keyword/tag")
+        warning('Post ' + str(item) + ' is missing a keyword/tag')
     else:
         keywords = yaml_header['keywords']
         # careful: keywords may be a single string
@@ -156,10 +156,10 @@ parser.add_argument('-v', '--verbosity', default=loglevel,
                     help='Verbosity (1, the default, reports which replacements took place)')
 parser.add_argument('-l', '--logfile', default='ssst.log',
                     help='Name of file to store all log messages in')
-parser.add_argument("-p", "--pedantic", default = False, action="store_true",
-                    help="Abort after warning")
-parser.add_argument("-b", "--backup", default = False, action="store_true",
-                    help="Keep bakcup of source file when changed.")
+parser.add_argument('-p', '--pedantic', default = False, action='store_true',
+                    help='Abort after warning')
+parser.add_argument('-b', '--backup', default = False, action='store_true',
+                    help='Keep bakcup of source file when changed.')
 parser.add_argument('keyword',
                     help='Keyword')
 parser.add_argument('replacement',
