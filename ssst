@@ -709,7 +709,7 @@ def dump(out_name,type,label,filelist):
     log(3,'Dumping to ' + str(out_name))
     with DelayedTextfile(src_path_of(out_name)) as outf:
         outf.write('---\n')
-        outf.write("title: '" + label.capitalize() + "'\n")
+        outf.write("title: '" + label + "'\n")
         outf.write("subtitle: '" + type + "'\n")        
         outf.write('---\n')        
         for entry in filelist:
