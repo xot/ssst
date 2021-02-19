@@ -740,7 +740,7 @@ def dump_cats_and_tags():
         tagsf.write("title: 'Tags'\n")
         tagsf.write('---\n\n')
         firstchar = ''
-        for tag in sorted(list(posts_with_tag)):
+        for tag in sorted(list(posts_with_tag), key=str.lower):
             tag_pathname = Path('tag/' + tag + '/index.sst')
             # output a header for each alphabetical change
             if firstchar != tag[0]:
