@@ -376,7 +376,8 @@ def process_post_metadata(post: Path):
         if type(tags) is str:
             tags = [ tags ]
         for tag in tags:
-            tag = tag.lower()
+            if not tag.isupper():
+                tag = tag.capitalize()
             if tag not in posts_with_tag:
                 posts_with_tag[tag] = []
             posts_with_tag[tag].append(post_relpath)
