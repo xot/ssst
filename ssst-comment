@@ -32,7 +32,7 @@ loglevel = -1
 # Outpur the error message, and log it when required. Then exit
 # - msg: the error message
 def error (msg: str):
-    m = "ssst-comment: error: %s\n" % str(msg)
+    m = 'ssst-comment: error: %s\n' % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -42,7 +42,7 @@ def error (msg: str):
 # Exit when pedantic processing was specified.
 # - msg: the warning message
 def warning (msg: str):
-    m = "ssst-comment: warning: %s\n" % str(msg)
+    m = 'ssst-comment: warning: %s\n' % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -151,7 +151,7 @@ def get_author(fromstr: str) -> str:
 # - date: string containing date
 def get_date(datestr: str) -> str:
     log(1,'Parsing date ' + datestr) 
-    time = datetime.datetime.strptime(datestr,"%a, %d %b %Y %H:%M:%S %z")
+    time = datetime.datetime.strptime(datestr,'%a, %d %b %Y %H:%M:%S %z')
     return str(time.date())
 
 from html.parser import HTMLParser
@@ -242,23 +242,23 @@ def add (mail: str):
         log(2,content)
         log(0,'Writing comment from ' + author + ' dated ' + date + ' to ' + str(fname))
         with open(fname,'w') as outf:
-            outf.write("---\n")
+            outf.write('---\n')
             outf.write("author: '" + author + "'\n")
             outf.write("date: '" + date + "'\n")                        
-            outf.write("---\n")            
+            outf.write('---\n')            
             outf.write(content)
         
 # Set up arguments parsing
-parser = argparse.ArgumentParser()
-parser.add_argument("mail", help="Mail containing comment to add")
-parser.add_argument("-s", "--source", default=src_root,
-                    help="Path to the root of the source files tree")
-parser.add_argument("-v", "--verbosity", default=loglevel,
-                    help="Verbosity (-1, the default, is silent)")
+parser = argparse.ArgumentParser(description='SSST-omment. Add a new comment to a blogpost.')
+parser.add_argument('mail', help='Mail containing comment to add.')
+parser.add_argument('-s', '--source', default=src_root,
+                    help='Path to the root of the source files tree')
+parser.add_argument('-v', '--verbosity', default=loglevel,
+                    help='Verbosity (-1, the default, is silent)')
 parser.add_argument('-l', '--logfile', default='ssst-comment.log',
                     help='Name of file to store all log messages in')
-parser.add_argument("-p", "--pedantic", default = False, action="store_true",
-                    help="Abort after warning")
+parser.add_argument('-p', '--pedantic', default = False, action='store_true',
+                    help='Abort after warning')
 args = parser.parse_args()
 
 # Apply arguments

@@ -43,7 +43,7 @@ loglevel = -1
 # Outpur the error message, and log it when required. Then exit
 # - msg: the error message
 def error (msg: str):
-    m = "ssst-add: error: %s\n" % str(msg)
+    m = 'ssst-add: error: %s\n' % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -53,7 +53,7 @@ def error (msg: str):
 # Exit when pedantic processing was specified.
 # - msg: the warning message
 def warning (msg: str):
-    m = "ssst-add: warning: %s\n" % str(msg)
+    m = 'ssst-add: warning: %s\n' % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -95,7 +95,7 @@ def log (level: int, msg: str):
 
 def get_yaml_dict(src):
     try:
-        with open(src,"r") as f:
+        with open(src,'r') as f:
             yamls = yaml.load_all(f,Loader=yaml.SafeLoader)
             for y in yamls:
                 return y
@@ -127,14 +127,14 @@ def map_char (c):
 # of '-' or a '-' at the start or the end. Convert to lowercase
 def normalise_title(title):
     title = html.unescape(title)
-    res = ""
+    res = ''
     lastchar = '-'
     for i in range (0,len(title)):
         c = map_char(title[i])
         if not ((c == '-') and (lastchar == '-')):
             lastchar = c
             res = res + c
-    if res[-1] == "-":
+    if res[-1] == '-':
         return res[:-1]
     else:
         return res
@@ -176,12 +176,12 @@ def add(src_root,post):
     if 'title' in yaml_header:
         title = yaml_header['title']
     else:
-        error("Post is missing a title")
+        error('Post is missing a title')
     # get the date; replace with today if not present (or in wrong format)
     if 'date' in yaml_header:
         date = yaml_header['date']
         if type(date) is str:
-            interactive_warning("Cannot parse date in post; using today instead")
+            interactive_warning('Cannot parse date in post; using today instead')
             date = datetime.date.today()
             yaml_header['date'] = date
     else:
@@ -189,44 +189,44 @@ def add(src_root,post):
         yaml_header['date'] = date
     # warn for missing or unknown categories
     if not 'categories' in yaml_header:
-        interactive_warning("Post is missing a category")
+        interactive_warning('Post is missing a category')
     else:
         check_known_categories(src_root,yaml_header['categories'])
     # warn for missing or unknown keywords/tags
     if not 'keywords' in yaml_header:
-        interactive_warning("Post is missing a keyword/tag")
+        interactive_warning('Post is missing a keyword/tag')
     else:
         check_known_tags(src_root,yaml_header['keywords'])
     # determine the full pathname for the post
-    dest = str(src_root) + date.strftime("/%Y/%m/%d/") + \
-        normalise_title(title) + "/index.md"
+    dest = str(src_root) + date.strftime('/%Y/%m/%d/') + \
+        normalise_title(title) + '/index.md'
     # make the parent folder if it doesn't exist yet
     parent = item_folder(dest)
-    log(1,"Making parent " + str(parent)) 
+    log(1,'Making parent ' + str(parent)) 
     os.makedirs(parent, exist_ok=True)
     # copy the post to its destination, replacing the yaml
     # block with the one with the correct date
-    log(0,"Adding " + post + " to " + dest)
-    with open(post,"r") as inf:
+    log(0,'Adding ' + post + ' to ' + dest)
+    with open(post,'r') as inf:
         s = inf.read()
         # the content is after the second occurance of the YML separator '---'
-        content = s.split("---",maxsplit=2)[2]
-        with open(dest,"w") as outf:
+        content = s.split('---',maxsplit=2)[2]
+        with open(dest,'w') as outf:
             yaml.dump(yaml_header,outf,explicit_start=True)
             outf.write('---\n')
             outf.write(content)
         
 # Set up arguments parsing
 parser = argparse.ArgumentParser(description='SSST-add. Add a post to a SSST managed blog.')
-parser.add_argument("post", help="Filename of post to add")
-parser.add_argument("-s", "--source", default=src_root,
-                    help="Path to the root of the source files tree")
-parser.add_argument("-v", "--verbosity", default=loglevel,
-                    help="Verbosity (-1, the default, is silent)")
+parser.add_argument('post', help='Filename of post to add')
+parser.add_argument('-s', '--source', default=src_root,
+                    help='Path to the root of the source files tree')
+parser.add_argument('-v', '--verbosity', default=loglevel,
+                    help='Verbosity (-1, the default, is silent)')
 parser.add_argument('-l', '--logfile', default='ssst-add.log',
                     help='Name of file to store all log messages in')
-parser.add_argument("-p", "--pedantic", default = False, action="store_true",
-                    help="Abort after warning")
+parser.add_argument('-p', '--pedantic', default = False, action='store_true',
+                    help='Abort after warning')
 args = parser.parse_args()
 
 # Apply arguments

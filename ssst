@@ -122,7 +122,7 @@ all_posts = []
 # Outpur the error message, and log it when required. Then exit
 # - msg: the error message
 def error(msg: str):
-    m = "ssst: error: %s\n" % str(msg)
+    m = 'ssst: error: %s\n' % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -132,7 +132,7 @@ def error(msg: str):
 # Exit when pedantic processing was specified.
 # - msg: the warning message
 def warning(msg: str):
-    m = "ssst: warning: %s\n" % str(msg)
+    m = 'ssst: warning: %s\n' % str(msg)
     sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
@@ -276,7 +276,7 @@ def item_url (item: Path, context: Path) -> str:
 def get_template(name: Path):
     template = templates / name        
     if not template.exists():
-        error("Template %s not found" % template)
+        error('Template %s not found' % template)
     return template
 
 # Return the full path for a template, throw error if it does not exist
@@ -309,21 +309,21 @@ def replace_when_changed (current: Path, update: Path):
         update.unlink() # remove file
 
 # Parse a date if it is a string, return unchanced otherwise.
-# (Only parses wordpress generated dates like "Sun, 19 Apr 2020 08:42:00 +0000"
+# (Only parses wordpress generated dates like 'Sun, 19 Apr 2020 08:42:00 +0000'
 # that the YAML parser fails to parse)
 # - s: string to parse if it isn't a date
 def parse_date (s) -> datetime.date:
     if type(s) is str:
-        time = datetime.datetime.strptime(s,"%a, %d %b %Y %H:%M:%S %z")
+        time = datetime.datetime.strptime(s,'%a, %d %b %Y %H:%M:%S %z')
         return time.date()
     else:
         return s
 
-# Convert a date to something like "April 03, 2013"
+# Convert a date to something like 'April 03, 2013'
 # - date: datetime object to be converted to a string
 def normalize_date(date: datetime.date) -> str:
     # we do NOT want zero-padding on days
-    return date.strftime("%B ") + str(date.day) + ', ' + str(date.year)
+    return date.strftime('%B ') + str(date.day) + ', ' + str(date.year)
 
 # Minimum amount of milliseconds difference between destination and source 
 # modification time before an item will be considered older (and hence a
@@ -389,7 +389,7 @@ def process_post_metadata(post: Path):
     if 'date' in yaml: 
         tmp = yaml['date']
         date = parse_date(tmp)
-        dateprefix = date.strftime("%Y/%m/%d")
+        dateprefix = date.strftime('%Y/%m/%d')
         poststr = str(item_relpath(post))
         if not poststr.startswith(dateprefix):
             warning('Date ' + dateprefix + ' in ' + str(post) + \
@@ -707,10 +707,10 @@ def dump(out_name,type,label,filelist):
     os.makedirs(src_folder_of(out_name),exist_ok=True)
     log(3,'Dumping to ' + str(out_name))
     with DelayedTextfile(src_path_of(out_name)) as outf:
-        outf.write("---\n")
+        outf.write('---\n')
         outf.write("title: '" + label.capitalize() + "'\n")
         outf.write("subtitle: '" + type + "'\n")        
-        outf.write("---\n")        
+        outf.write('---\n')        
         for entry in filelist:
             dump_entry(entry,out_name,outf)
                 
@@ -724,9 +724,9 @@ def dump_cats_and_tags():
     # DelayedTextfile will be written to disk when with closes
     # (and contents really chagned)
     with DelayedTextfile(categories_pathname) as catsf:        
-        catsf.write("---\n")
+        catsf.write('---\n')
         catsf.write("title: 'Categories'\n")
-        catsf.write("---\n\n")
+        catsf.write('---\n\n')
         for cat in sorted(list(posts_with_cat)):
             cat_pathname = Path('category/' + cat + '/index.sst')
             catsf.write('- [' + cat + '](' + item_url(cat_pathname,'.') + ')\n')
@@ -735,9 +735,9 @@ def dump_cats_and_tags():
     # DelayedTextfile will be written to disk when with closes
     # (and contents really chagned)
     with DelayedTextfile(tags_pathname) as tagsf:        
-        tagsf.write("---\n")
+        tagsf.write('---\n')
         tagsf.write("title: 'Tags'\n")
-        tagsf.write("---\n\n")
+        tagsf.write('---\n\n')
         firstchar = ''
         for tag in sorted(list(posts_with_tag)):
             tag_pathname = Path('tag/' + tag + '/index.sst')
@@ -775,10 +775,10 @@ def dump_archives():
     # DelayedTextfile will be written to disk when with closes
     # (and contents really chagned)
     with DelayedTextfile(archive) as archivef:        
-        archivef.write("---\n")
+        archivef.write('---\n')
         archivef.write("title: 'Archives'\n")
 #        archivef.write("template: 'ssst-archives.html'\n")
-        archivef.write("---\n")
+        archivef.write('---\n')
         # process all posts and put them in the appropriate archive
         # this creates another DelayedTextfile for every new archive
         for post in archive_posts:
@@ -786,8 +786,8 @@ def dump_archives():
             # should appear in
             date = post_metadata[post][0]
             archive_year = date.year
-            monthyear = date.strftime("%B %Y")
-            archive_relative_path = date.strftime("%Y/%m/index.sst")
+            monthyear = date.strftime('%B %Y')
+            archive_relative_path = date.strftime('%Y/%m/index.sst')
             archive_path = src_path_of(archive_relative_path)
             # if we are processing a new month
             if archive_path not in archive_paths:
@@ -806,9 +806,9 @@ def dump_archives():
                 outf = DelayedTextfile(archive_path)
                 archive_paths[archive_path] = outf
                 # write the header for the new archive
-                outf.write("---\n")
+                outf.write('---\n')
                 outf.write("title: 'Archive " + monthyear + "'\n")        
-                outf.write("---\n")
+                outf.write('---\n')
             # append the entry to the monthly archive
             outf = archive_paths[archive_path]
             dump_entry(post,archive_relative_path,outf)
@@ -1077,7 +1077,7 @@ def rss_feed_post(post: Path, fname: str):
     date = post_metadata[post][0]
     # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
     # (Note that post_metadata[post][0] contains only a date, and not a time) 
-    datestr = date.strftime("%a, %d %b %Y 00:00:00 +0000")
+    datestr = date.strftime('%a, %d %b %Y 00:00:00 +0000')
     # create a URL for the  post to be summarised
     post_url = item_url(post,Path('index.html'))
     post_path = src_path_of(post)                    
@@ -1100,7 +1100,7 @@ def make_rss_feed():
     # get the current date and time and set the timezone
     now = datetime.datetime.today().astimezone(ZoneInfo('UTC'))
     # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
-    datestr = now.strftime("%a, %d %b %Y %H:%M:%S %z")
+    datestr = now.strftime('%a, %d %b %Y %H:%M:%S %z')
     # creata a temorary direcotry to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
@@ -1221,9 +1221,9 @@ make_rss_feed()
 # report about all changed files
 
 if not dest_root_changes:
-    log(0,"No files changed in destination.")
+    log(0,'No files changed in destination.')
 else:
-    log(0,"Files changed in destination:")
+    log(0,'Files changed in destination:')
     for p in dest_root_changes:
         log(1,str(p))
 
