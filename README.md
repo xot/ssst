@@ -92,6 +92,33 @@ optional arguments:
   -p, --pedantic        Abort after warning
 ```
 
+## Replacing a tag/keyword
+
+The `ssst-replacetag` utility replaces all occurrences of a tag/keyword in all posts in the source tree with the supplied replacement.
+
+```
+usage: ssst-replacetag [-h] [-s SOURCE] [-v VERBOSITY] [-l LOGFILE] [-p] [-b]
+                       keyword replacement
+
+SSST-replacetag. Replace a tag in a post.
+
+positional arguments:
+  keyword               Keyword
+  replacement           Replacement keyword
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -s SOURCE, --source SOURCE
+                        Path to the root of the source files tree
+  -v VERBOSITY, --verbosity VERBOSITY
+                        Verbosity (1, the default, reports which replacements
+                        took place)
+  -l LOGFILE, --logfile LOGFILE
+                        Name of file to store all log messages in
+  -p, --pedantic        Abort after warning
+  -b, --backup          Keep bakcup of source file when changed.
+```
+
 # Input
 
 SSST processes markdown files containing posts or pages. SSST expects these files to start with a YAML block containing at least the post/page title (using the `title:` key). Posts also have a date (using the `date:` key). Pages do not.

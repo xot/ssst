@@ -153,7 +153,7 @@ parser = argparse.ArgumentParser(description='SSST-replacetag. Replace a tag in 
 parser.add_argument('-s', '--source', default=src_root,
                     help='Path to the root of the source files tree')
 parser.add_argument('-v', '--verbosity', default=loglevel,
-                    help='Verbosity (-1, the default, is silent)')
+                    help='Verbosity (1, the default, reports which replacements took place)')
 parser.add_argument('-l', '--logfile', default='ssst.log',
                     help='Name of file to store all log messages in')
 parser.add_argument("-p", "--pedantic", default = False, action="store_true",
