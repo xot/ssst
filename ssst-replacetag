@@ -1,0 +1,185 @@
+#!/usr/local/bin/python3
+#
+# SSST-REPLACETAG
+#
+# Manage tags in a site maintained with SSST
+#
+# Author: Jaap-henk Hoepman (jhh@xs4all.nl)
+
+import argparse, sys, shutil, yaml
+from pathlib import Path
+
+
+# ---
+# CONSTANTS / PARAMETERS
+# ---
+
+# Path to the root of the source files tree
+src_root = Path('./src')
+
+# Keep backup
+backup =  False
+
+# Verbosity
+loglevel = 1
+
+# logfile name
+logfile = None 
+
+# Abort after warning
+pedantic = False 
+
+# ---
+# ERRORS / LOGGING
+# ---
+
+# Outpur the error message, and log it when required. Then exit
+# - msg: the error message
+def error(msg: str):
+    m = "ssst-replacetag: error: %s\n" % str(msg)
+    sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
+    sys.exit (1)
+
+# Output the warning message, and write it to the log file if it was specified.
+# Exit when pedantic processing was specified.
+# - msg: the warning message
+def warning(msg: str):
+    m = "ssst-replacetag: warning: %s\n" % str(msg)
+    sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
+    if pedantic:
+        sys.exit (1)
+
+# Output a log message when its level is lower than the specifief verbosity
+# on the command line. Always write the message to the log file if it was
+# specified 
+# - level: the log-level for this message
+# - msg: the log message
+def log (level: int, msg: str):
+    if level == 0:
+        m = '# '
+    else:
+        m = '-' * level + ' '
+    m = m + str(msg) + '\n'
+    if (level <= loglevel):
+        sys.stdout.write(m)
+    if logfile != None:
+        logfile.write(m)
+
+# ---
+# Utility
+# ---
+
+# Return an iterator that iterates over all files in the tree rooted at
+# src_root with the specified suffix
+# - suffix: suffix of files to return, including "."
+def src_files_with_suffix(suffix: str):
+    return Path(src_root).glob('**/*' + suffix)
+
+# ---
+# YAML
+# ---
+
+def get_yaml_dict(src: Path):
+    try:
+        with open(src,"r") as f:
+            yamls = yaml.load_all(f,Loader=yaml.SafeLoader)
+            for y in yamls:
+                return y
+    except:
+        warning('Invalid YAML block in ' + str(src))
+        return {}
+
+# ---
+# SUBROUTINES
+# ---
+
+# Replace the header
+# - item
+# - yaml_header: new header
+def replace_yaml_header(item: Path, yaml_header):
+    # copy the post to its destination, replacing the yaml
+    # block with the one with the correct keywords
+    if backup:
+        shutil.copy2(item,str(item) + ".bak")
+    with open(item,"r") as inf:
+        s = inf.read()
+        # the content is after the second occurance of the
+        # YAML separator '---'
+        content = s.split("---",maxsplit=2)[2]
+    with open(str(item),"w") as outf:
+        yaml.dump(yaml_header,outf,explicit_start=True)
+        outf.write('---\n')
+        outf.write(content)
+    
+# Process all posts in the tree rooted at stc_root, and replace keyword
+# with replacement
+def process_post (item: Path ,keyword: str ,replacement: str):
+    log(2,'Processing post: ' + str(item))
+    yaml_header = get_yaml_dict(item)
+    # warn for missing or unknown keywords/tags
+    if not 'keywords' in yaml_header:
+        warning("Post is missing a keyword/tag")
+    else:
+        keywords = yaml_header['keywords']
+        # careful: keywords may be a single string
+        if type(keywords) is str:
+            keywords = [ keywords ]
+        # check if keyword in keywords, and if so, replace with replacement
+        if keyword in keywords:
+            log(1,'Keyword ' + keyword + ' found in ' + str(item) + '. Replacing with ' \
+                  + replacement)
+            yaml_header['keywords'] = \
+               [ replacement if k == keyword else k for k in keywords]
+            replace_yaml_header(item,yaml_header)
+            
+# Process all posts in the tree rooted at stc_root, and replace keyword
+# with replacement
+def process_posts (keyword,replacement):
+    log(0,'Processing posts.')
+    # Find all posts (they have suffix .md) and process their metadata
+    for item in src_files_with_suffix('.md'):
+        process_post(item,keyword,replacement)
+        
+# ---
+# MAIN
+# ---
+
+# Set up arguments parsing
+parser = argparse.ArgumentParser(description='SSST-replacetag. Replace a tag in a post.')
+parser.add_argument('-s', '--source', default=src_root,
+                    help='Path to the root of the source files tree')
+parser.add_argument('-v', '--verbosity', default=loglevel,
+                    help='Verbosity (-1, the default, is silent)')
+parser.add_argument('-l', '--logfile', default='ssst.log',
+                    help='Name of file to store all log messages in')
+parser.add_argument("-p", "--pedantic", default = False, action="store_true",
+                    help="Abort after warning")
+parser.add_argument("-b", "--backup", default = False, action="store_true",
+                    help="Keep bakcup of source file when changed.")
+parser.add_argument('keyword',
+                    help='Keyword')
+parser.add_argument('replacement',
+                    help='Replacement keyword')
+args = parser.parse_args()
+
+# Apply arguments and check validity
+src_root = Path(args.source)
+if not src_root.exists():
+    error('Source tree %s does not exist.' % src_root)
+loglevel = int(args.verbosity)
+logname = args.logfile
+backup = args.backup
+
+# open logfile
+if logname != '':
+    logfile = open(logname,'w')
+
+process_posts(args.keyword,args.replacement)
+
+# close the logfile if necessary
+if logfile != None:
+    logfile.close()
