@@ -845,7 +845,7 @@ def is_workitem(item: Path) -> bool:
     for file in files:
         log(4,'Additional file found: ' + str(file))
         if is_older(dest,file):
-            log(4,'Destination older than comment in source.')
+            log(4,'Destination older than comment or media item in source.')
             return True
     return False
 
@@ -876,7 +876,8 @@ def worklist ():
     log(0,'Determining files to process...')
     # determine all .md files that need to be made
     list = worklist_for('.md')
-    # remove <src_root>/index.md which is made separetely with make_home()
+    # remove <src_root>/index.md which is (always) made separetely
+    # through make_home() called later
     if Path('index.md') in list:
         list.remove(Path('index.md'))
     extended_list = list.copy()
