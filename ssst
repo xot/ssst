@@ -960,8 +960,6 @@ def make(item: Path):
         # make the item using the specified template, merging in comments
         # in tmpdir
         make_item(item,tmpdir,template)
-    # TODO: fixme: also copy media when only media changed, while post itself
-    # stays the same
     copy_media(item)
 
 # ---
