@@ -98,16 +98,16 @@ logfile = None
 # List of all files in dest_root that changed in the process
 dest_root_changes = []
 
-# Dictionary of all tags and relative pathnames for the posts with those tags
+# Dictionary of all tags, listing for each tag the relative pathnames for the posts with those tags
 # (filled by process_posts -> process_post_metadata) 
 posts_with_tag = {}
 
-# Dictionary of all categories relative pathnames for the posts with those categories
+# Dictionary of all categories, listing for each category the relative pathnames for the posts with those categories
 # (filled by process_posts -> process_post_metadata) 
 posts_with_cat = {}
 
-# Dictionary of all posts metadata (as tuples (date,title,template)) indexed
-# by the relative pathname for the post
+# Dictionary of all posts (indexed using their relative pathnames), containing
+# the metadata as tuples (date,title,template)
 # (filled by process_posts -> process_post_metadata) 
 post_metadata = {}
 
@@ -906,7 +906,7 @@ def copy_media(item: Path):
     dest_folder = dest_folder_of(item)
     for f in mediafiles_for(item):
         log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
-        dest_root_changes.append(f)
+        dest_root_changes.append(dest_root / item_relpath(f))
         shutil.copy2(f,dest_folder) # keep metadata
 
 # Remove all non html files (not diretories) from a folder
@@ -959,6 +959,8 @@ def make(item: Path):
         # make the item using the specified template, merging in comments
         # in tmpdir
         make_item(item,tmpdir,template)
+    # TODO: fixme: also copy media when only media changed, while post itself
+    # stays the same
     copy_media(item)
 
 # ---
@@ -1166,7 +1168,6 @@ parser.add_argument('-z', '--summarylength', default=summary_length,
                     help='Number of lines in post (including YAML header) to include in a summary')
 parser.add_argument('-o', '--overwrite', default = False, action='store_true',
                     help='Overwrite files even when contents unchanged')
-
 args = parser.parse_args()
 
 # Apply arguments and check validity
@@ -1195,21 +1196,30 @@ if logname != '':
 
 # first collect all metadate (like tags and categories, but also title and date
 # for all blog entries (posts and pages) in the source tree. This initializes
-# - posts_with_cat
-# - posts_with_tag
-# - post_metadata
-# - all_posts (essentially the tags of post_metadata, but sorted by date)
+# - posts_with_cat (dictionary of all categories, listing all posts contained)
+# - posts_with_tag (dictionary of all tags, listing all posts tagged as scuh)
+# - post_metadata (dictionary of all posts, containing metadata
+#   as tuples (date,title,template)
+# - all_posts (essentially a copy of post_metadata): list of all relative
+#   pathnames for posts, sorted by date (most recent first)
 process_posts()
 
 # dump the category and tag files in ./category/<categorystring>/index.sst and
 # ./tag/<tagstring>/index.sst, and create the overviews ./categories.sst
 # and ./tags.sst
+#
+# make sure not to touch files whose contents do not change (so they do not
+# show up as a worklist() item and will be skipped by make())
 dump_cats_and_tags()
 
 # dump all archive files ./yyyy/mm/index.sst and ./archives.sst
+#
+# make sure not to touch files whose contents do not change (so they do not
+# show up as a worklist() item and will be skipped by make())
 dump_archives()
 
-# make all html files (also for the .sst files just generated)
+# make all html files whose sources have changed
+# (this includes the .sst files just generated)
 for item in worklist():
     make(item)
 
@@ -1219,8 +1229,9 @@ make_home()
 # create the rss feed
 make_rss_feed()
 
-# report about all changed files
-
+# report all changed html files
+# TODO: change to ftp commands, eg
+# ncftpput -f XOT-ftp <dest-dir> <src>
 if not dest_root_changes:
     log(0,'No files changed in destination.')
 else:
