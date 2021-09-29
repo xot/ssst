@@ -1075,7 +1075,6 @@ def make_home():
 # - post: post to summarise
 # - fname: name of file to store summary in
 def rss_feed_post(post: Path, fname: str):
-    global localpath_replacement
     date = post_metadata[post][0]
     # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
     # (Note that post_metadata[post][0] contains only a date, and not a time) 
