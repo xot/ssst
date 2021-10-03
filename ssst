@@ -1162,7 +1162,6 @@ def report_changes():
 
 # Create upload script
 def create_uploadscript ():
-    uploadcommand = 'ncftpput -f XOT-ftp domains/xot.nl/public_html/blog/{path} {path}/{file}'
     # create uploadscritp (if requested)
     # ncftpput -f XOT-ftp <dest-dir> <src>
     if (uploadscript != '') and dest_root_changes:
