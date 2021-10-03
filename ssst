@@ -91,11 +91,21 @@ summary_length = 20
 # logfile name
 logfile = None 
 
+# upload script file name
+uploadscript = None 
+
+# upload command, can containt the following modifiers
+# {path} : replaced with the destination path of the changed item (without the
+#    destination prefix specified by -d
+# {src} : full path name of the changed file that needs to be uploaded
+uploadcommand = ''
+
 # ---
 # OTHER GLOBAL VARIABLES
 # ---
 
 # List of all files in dest_root that changed in the process
+# (relative to dest_root)
 dest_root_changes = []
 
 # Dictionary of all tags, listing for each tag the relative pathnames for the posts with those tags
@@ -302,7 +312,7 @@ def replace_when_changed (current: Path, update: Path):
        overwrite or \
        (not filecmp.cmp(current,update,shallow=False)): 
         log(5,'File changed ' + str(current))
-        dest_root_changes.append(current)
+        dest_root_changes.append(current.relative_to(dest_root))
         update.rename(current)
     else:
         log(5,'File not changed ' + str(current))
@@ -907,7 +917,7 @@ def copy_media(item: Path):
     dest_folder = dest_folder_of(item)
     for f in mediafiles_for(item):
         log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
-        dest_root_changes.append(dest_root / item_relpath(f))
+        dest_root_changes.append(item_relpath(f))
         shutil.copy2(f,dest_folder) # keep metadata
 
 # Remove all non html files (not diretories) from a folder
@@ -1135,7 +1145,37 @@ def make_rss_feed():
         run_shell_command(command)
         # replace file containing the home page only if its contents changed
         replace_when_changed(dest,dest_tmp)    
-        
+
+
+# ---
+# REPORT CHANGES / CREATE UPLOAD SCRIPT
+# ---
+
+# Report changes
+def report_changes():
+    if not dest_root_changes:
+        log(0,'No files changed in destination.')
+    else:
+        log(0,'Files changed in destination:')
+        for p in dest_root_changes:
+            log(1,str(p))
+
+# Create upload script
+def create_uploadscript ():
+    uploadcommand = 'ncftpput -f XOT-ftp domains/xot.nl/public_html/blog/{path} {path}/{file}'
+    # create uploadscritp (if requested)
+    # ncftpput -f XOT-ftp <dest-dir> <src>
+    if (uploadscript != '') and dest_root_changes:
+        log(0,'Creating upload script')
+        with open(uploadscript,'w') as f:
+            for p in dest_root_changes:
+                f.write(uploadcommand.format(
+                    path = p.parent,
+                    file = p.name
+                ))
+                f.write('\n')
+
+
 # ---
 # MAIN
 # ---
@@ -1154,6 +1194,10 @@ parser.add_argument('-v', '--verbosity', default=loglevel,
                     help='Verbosity (-1, the default, is silent)')
 parser.add_argument('-l', '--logfile', default='ssst.log',
                     help='Name of file to store all log messages in')
+parser.add_argument('-u', '--uploadscript', default='ssst.upload',
+                    help='Name of script file to store upload commands in')
+parser.add_argument('-c', '--uploadcommand', default='',
+                    help='Upload command string (with modifiers)')
 parser.add_argument('-f', '--force', default = False, action='store_true',
                     help='(Re)make everything')
 parser.add_argument('-g', '--gladtex', default = False, action='store_true',
@@ -1186,6 +1230,8 @@ use_gladtex = args.gladtex
 pedantic = args.pedantic
 keep_simple_eqs = args.keepsimple
 logname = args.logfile
+uploadscript = args.uploadscript
+uploadcommand = args.uploadcommand
 summary_length = int(args.summarylength)
 
 # open logfile
@@ -1227,16 +1273,12 @@ make_home()
 # create the rss feed
 make_rss_feed()
 
-# report all changed html files
-# TODO: change to ftp commands, eg
-# ncftpput -f XOT-ftp <dest-dir> <src>
-if not dest_root_changes:
-    log(0,'No files changed in destination.')
-else:
-    log(0,'Files changed in destination:')
-    for p in dest_root_changes:
-        log(1,str(p))
+# report all changed files
+report_changes()
 
+# create the upload script to upload all chaned files
+create_uploadscript()
+        
 # close the logfile if necessary
 if logfile != None:
     logfile.close()
