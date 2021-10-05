@@ -308,15 +308,16 @@ def get_template_or_default(name: Path, default: Path):
 # - current: file whose contents must be updated 
 # - update: file containing new content
 def replace_when_changed (current: Path, update: Path):
-    if (not current.exists()) or \
-       overwrite or \
-       (not filecmp.cmp(current,update,shallow=False)): 
+    if (not current.exists()) \
+       or overwrite \
+       or (not filecmp.cmp(current,update,shallow=False)): 
         log(5,'File changed ' + str(current))
         dest_root_changes.append(current.relative_to(dest_root))
         update.rename(current)
     else:
         log(5,'File not changed ' + str(current))
         update.unlink() # remove file
+
 
 # Parse a date if it is a string, return unchanced otherwise.
 # (Only parses wordpress generated dates like 'Sun, 19 Apr 2020 08:42:00 +0000'
@@ -623,6 +624,7 @@ def make_item(item,tmpdir,item_template):
         gladtex_str = ' --gladtex '
     else:
         gladtex_str = '' 
+    # recall that comments are in tmpdir/comments.html
     command = 'pandoc ' + gladtex_str + '-s -f markdown -t html --template=' + \
         str(item_template) + \
         ' -A '+ tmpdir + '/comments.html' + \
@@ -730,6 +732,8 @@ def dump_entries(out_name,type,label,filelist):
 # ./category/.. and ./tag/... directories in the src_root (SOURCE!) tree;
 # These are markdown files (with suffix .sst) that will subsequently be
 # converted to html through the make routine
+# Files whose contents would not change will not be touched; this way
+# amke will ignore them as the timestamp remains unchanged
 def dump_cats_and_tags():
     log(0,'Dumping category and tag files.')
     categories_pathname = src_path_of('categories.sst')
@@ -770,7 +774,9 @@ def archive_sort_key(entry):
 # ./yyyy/mm/index.sst in the src_root (SOURCE!) tree;
 # Also create a list of all known archives in src_root/archives.sst
 # These are markdown files that will subsequently be converted to html
-# through the make routine
+# through the make routine.
+# Files whose contents would not change will not be touched; this way
+# amke will ignore them as the timestamp remains unchanged
 def dump_archives():
     log(0,'Dumping archives.')
     last_year_archived = 0
@@ -951,7 +957,18 @@ def page_template(page,default):
         template = 'ssst-categories.html'
     return get_template_or_default(template,default)
 
-# Make the output (in dest_root) for the item (from src_root)
+# Make the output (in dest_root) for the item (from src_root). The output
+# replaces what is in the destination if it is new, changed, or newer than what
+# is there (except for possible .svg files containing equations, those are
+# only updated when they really change)
+# Even if the output is the same, it *is* still replacing what is in the
+# destination (ie the timestamp is updated) when the source is newer,
+# to prevent make considering this item each and every time.
+#
+# Media files are copied to the destination folder if new, changed, or newer
+# than what is in the destination. Media files removed from the source are
+# removed from the destination.
+
 def make(item: Path):
     log(1,'Processing ' + str(src_path_of(item)))
     # Clean the destination folder (only for posts that are guaranteed
@@ -961,6 +978,7 @@ def make(item: Path):
         clean_folder(dest_folder)
     # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
+        # make comments, stores result in tmpdir/comments.html
         make_comments(item,tmpdir)
         if is_post(item):
             log(2,'Processing post')
