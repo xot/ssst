@@ -240,6 +240,8 @@ SSST keeps track of changed files. The `-u` option allows one to specify the nam
 - `{path}` : replaced with the relative path of the item in the destination tree
 - `{file}` : replaced with the filename of the item in the destination tree
 
+If `-u` is not specified, no upload script is created.
+
 # Dependencies
 
 This is a program written in Python (version 3), and depends on

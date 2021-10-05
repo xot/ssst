@@ -650,7 +650,8 @@ def make_item(item,comments,item_template):
     run_shell_command(command)
     # process any equations in the output
     process_equations(dest)
-    dest_root_changes.append(dest.relative_to(dest_root))
+    # record that destination has changed
+    dest_root_changes.append(item)
 
     
 # ---
@@ -1182,7 +1183,7 @@ def make_rss_feed():
 # REPORT CHANGES / CREATE UPLOAD SCRIPT
 # ---
 
-# Report changes
+# Report any changed destination files in the log
 def report_changes():
     if not dest_root_changes:
         log(0,'No files changed in destination.')
@@ -1191,11 +1192,12 @@ def report_changes():
         for p in dest_root_changes:
             log(1,str(p))
 
-# Create upload script
+# Create upload script that uploads all changed files in the destination
 def create_uploadscript ():
-    # create uploadscritp (if requested)
-    # ncftpput -f XOT-ftp <dest-dir> <src>
-    if (uploadscript != '') and dest_root_changes:
+    # create uploadscritp (if requested) and 
+    if (uploadscript != ''):
+        if (uploadcommand == ''):
+            error('No upload command string specified')
         log(0,'Creating upload script')
         with open(uploadscript,'w') as f:
             for p in dest_root_changes:
@@ -1224,7 +1226,7 @@ parser.add_argument('-v', '--verbosity', default=loglevel,
                     help='Verbosity (-1, the default, is silent)')
 parser.add_argument('-l', '--logfile', default='ssst.log',
                     help='Name of file to store all log messages in')
-parser.add_argument('-u', '--uploadscript', default='ssst.upload',
+parser.add_argument('-u', '--uploadscript', default='',
                     help='Name of script file to store upload commands in')
 parser.add_argument('-c', '--uploadcommand', default='',
                     help='Upload command string (with modifiers)')
