@@ -595,7 +595,7 @@ def prev_post(item):
 
 # Make the html item from the md or sst source specified by item, merging
 # in any comments, and using item_template as the template
-def make_item(item,tmpdir,item_template):
+def make_item(item,comments,item_template):
     # create destination folder if it doesnt exist yet
     os.makedirs(dest_folder_of(item), exist_ok=True)
     # blog-post path for reply links: strip the source prefix in front
@@ -624,19 +624,16 @@ def make_item(item,tmpdir,item_template):
         gladtex_str = ' --gladtex '
     else:
         gladtex_str = '' 
-    # recall that comments are in tmpdir/comments.html
     command = 'pandoc ' + gladtex_str + '-s -f markdown -t html --template=' + \
         str(item_template) + \
-        ' -A '+ tmpdir + '/comments.html' + \
+        ' -A '+ comments + \
         ' --metadata reply=' + reply_path + \
         ' --metadata root=' + str(item_root(item)) + \
         extra_metadata_str + \
-        ' -o '+ str(dest_tmp) + ' ' + str(src)
+        ' -o '+ str(dest) + ' ' + str(src)
     run_shell_command(command)
     # process any equations in the output
-    process_equations(dest_tmp)
-    # replace destination only when real changes occured
-    replace_when_changed(dest,dest_tmp)    
+    process_equations(dest)
 
     
 # ---
@@ -958,17 +955,14 @@ def page_template(page,default):
     return get_template_or_default(template,default)
 
 # Make the output (in dest_root) for the item (from src_root). The output
-# replaces what is in the destination if it is new, changed, or newer than what
-# is there (except for possible .svg files containing equations, those are
-# only updated when they really change)
-# Even if the output is the same, it *is* still replacing what is in the
-# destination (ie the timestamp is updated) when the source is newer,
-# to prevent make considering this item each and every time.
+# replaces what is in the destination always (and dest_root_changes updated
+# accordingly): the reason is that make is called if something in src is newer
+# than the destination, so we have to make sure that the timestamp changes (even
+# if the actual contents do not change) or else this item will be remade forever
 #
 # Media files are copied to the destination folder if new, changed, or newer
 # than what is in the destination. Media files removed from the source are
 # removed from the destination.
-
 def make(item: Path):
     log(1,'Processing ' + str(src_path_of(item)))
     # Clean the destination folder (only for posts that are guaranteed
@@ -988,7 +982,7 @@ def make(item: Path):
             template = page_template(item,'ssst-page.html')
         # make the item using the specified template, merging in comments
         # in tmpdir
-        make_item(item,tmpdir,template)
+        make_item(item,tmpdir + './comments.html',template)
     copy_media(item)
 
 # ---
