@@ -712,7 +712,7 @@ def dump_entry(entry,outname,outf):
 # (with title as title and label as subtitle)
 # containing a list of links to all posts in filelist
 # (assumed to be sorted by date)
-def dump(out_name,type,label,filelist):
+def dump_entries(out_name,type,label,filelist):
     # sort the list of pathnames by date, most recent first
     # (using the fact that the path encodes the file date)
     filelist.sort(reverse=True)
@@ -742,7 +742,7 @@ def dump_cats_and_tags():
         for cat in sorted(list(posts_with_cat)):
             cat_pathname = Path('category/' + cat + '/index.sst')
             catsf.write('- [' + cat + '](' + item_url(cat_pathname,'.') + ')\n')
-            dump(cat_pathname,'Category',cat,posts_with_cat[cat])
+            dump_entries(cat_pathname,'Category',cat,posts_with_cat[cat])
     tags_pathname = src_path_of('tags.sst')
     # DelayedTextfile will be written to disk when with closes
     # (and contents really chagned)
@@ -758,7 +758,7 @@ def dump_cats_and_tags():
                 firstchar = tag[0]
                 tagsf.write('\n\n## ' + firstchar.upper() + '\n\n') 
             tagsf.write('- [' + tag + '](' + item_url(tag_pathname,'.') + ')\n')
-            dump(tag_pathname,'Tag',tag,posts_with_tag[tag])
+            dump_entries(tag_pathname,'Tag',tag,posts_with_tag[tag])
 
 # return a sort key for an entry such that entries are sorted
 # by decreasing year, but increasing month and day
@@ -893,7 +893,7 @@ def worklist ():
         list.remove(Path('index.md'))
     extended_list = list.copy()
     # insert any "neighbours" of posts in the worklist as well, to ensure
-    # that their next and prev links are updated
+    # that their next and prev links are updated if necessary
     for item in list:
         if is_post(item):
             prev = prev_post(item)
