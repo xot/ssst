@@ -1164,7 +1164,6 @@ def make_rss_feed():
         if not src.exists():
           error('Home page input %s does not exist.' % src)
         dest = dest_path_of('feed/index.html')
-        dest_tmp = dest.with_suffix('.tmp')
         # create feed folder if it doesnt exist yet
         os.makedirs(dest.parent, exist_ok=True)
         # set the pandoc command string
@@ -1173,10 +1172,8 @@ def make_rss_feed():
             pandoc_append_str + \
             ' --metadata root=' + str(item_root(Path('index.html'))) + \
             ' --metadata date="' + datestr + '"' + \
-            ' -o '+ str(dest_tmp) + ' ' + str(src)
+            ' -o '+ str(dest) + ' ' + str(src)
         run_shell_command(command)
-        # replace file containing the home page only if its contents changed
-        replace_when_changed(dest,dest_tmp)    
 
 
 # ---
