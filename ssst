@@ -415,6 +415,7 @@ def process_post_metadata(post: Path):
 
 # Regular expression matching a path for a post (i.e. one that starts with a
 # four digit year)
+# FIXME: this is incomplete
 post_re = re.compile('[0-9][0-9][0-9][0-9].*')
     
 # Determine whether the item is a post (or a page)
@@ -893,14 +894,14 @@ def worklist ():
     extended_list = list.copy()
     # insert any "neighbours" of posts in the worklist as well, to ensure
     # that their next and prev links are updated
-    for post in list:
-        # if post is not a post really (but a page), prev=''
-        prev = prev_post(post)
-        if (prev != '') and (prev not in extended_list):
-            extended_list.append(prev)
-        next = next_post(post)
-        if (next != '') and (next not in extended_list):
-            extended_list.append(next)
+    for item in list:
+        if is_post(item):
+            prev = prev_post(item)
+            if (prev != '') and (prev not in extended_list):
+                extended_list.append(prev)
+            next = next_post(item)
+            if (next != '') and (next not in extended_list):
+                extended_list.append(next)
     # add all *.sst files that need to be made
     final_list = extended_list + worklist_for('.sst')
     log(0,str(len(final_list)) + ' files to process found.')
