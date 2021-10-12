@@ -651,7 +651,7 @@ def make_item(item,comments,item_template):
     # process any equations in the output
     process_equations(dest)
     # record that destination has changed
-    dest_root_changes.append(item)
+    dest_root_changes.append(dest.relative_to(dest_root))
 
     
 # ---
