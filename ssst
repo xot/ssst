@@ -1174,6 +1174,8 @@ def make_rss_feed():
             ' --metadata date="' + datestr + '"' + \
             ' -o '+ str(dest) + ' ' + str(src)
         run_shell_command(command)
+        # rss feed always changes (because the date inside always changes)
+        dest_root_changes.append(dest.relative_to(dest_root))
 
 
 # ---
