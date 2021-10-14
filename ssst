@@ -791,7 +791,7 @@ def archive_sort_key(entry):
 # These are markdown files that will subsequently be converted to html
 # through the make routine.
 # Files whose contents would not change will not be touched; this way
-# amke will ignore them as the timestamp remains unchanged
+# make will ignore them as the timestamp remains unchanged
 def dump_archives():
     log(0,'Dumping archives.')
     last_year_archived = 0
@@ -812,7 +812,8 @@ def dump_archives():
         archivef.write("title: 'Archives'\n")
 #        archivef.write("template: 'ssst-archives.html'\n")
         archivef.write('---\n')
-        # process all posts and put them in the appropriate archive
+        # process all posts to be archived and put them in the
+        # appropriate archive (determined by the month and year of publication)
         # this creates another DelayedTextfile for every new archive
         for post in archive_posts:
             # construct the full and relative path for the archive this post
@@ -989,7 +990,7 @@ def make(item: Path):
     dest_folder = dest_folder_of(item)
     if (is_post(item) and dest_folder.exists()):
         clean_folder(dest_folder)
-    # creata a temorary directory to work in; will be deleted when with closes
+    # create a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         # make comments, stores result in tmpdir/comments.html
         make_comments(item,tmpdir)
@@ -1042,7 +1043,7 @@ def substitute_localpath(matchobj) -> str:
 def summarize_post(post: Path, fname: str):
     global localpath_replacement
     date = post_metadata[post][0]
-    # create a URL for the  post to be summarised
+    # create the URL linking to the post to be summarised
     post_url = item_url(post,Path('index.html'))
     post_path = src_path_of(post)                    
     summary_entry_template = get_template('ssst-summary-entry.html')
@@ -1063,6 +1064,8 @@ def summarize_post(post: Path, fname: str):
     with open(fname,'r') as f:
         # read the file as one string
         orig_html = f.read()
+    # replace all occurance of the regexp matching local links to media
+    # with the their full path (using the prefix localpath_replacement)
     processed_html = localpath_re.sub(substitute_localpath, orig_html, count=0)
     # write the result back to the file
     with open(fname,'w') as f:
@@ -1085,9 +1088,10 @@ def make_home():
             # create a temporary html file summarizing this entry
             count = count + 1
             summary_name = tmpdir + '/summary.' + str(count) + '.html'
-            summarize_post(post,summary_name)
             # and add this to the files to append when making the home page
-            pandoc_append_str = pandoc_append_str + ' -A ' + summary_name 
+            pandoc_append_str = pandoc_append_str + ' -A ' + summary_name
+            # creat the html file summarizing the post for the homepage
+            summarize_post(post,summary_name)
         # Create the home page, including the summarized entries.    
         # Any content in <src_path>/index.md will be prepended before the
         # summarised posts; in particular its metadata determine the title
@@ -1098,6 +1102,8 @@ def make_home():
           error('Home page input %s does not exist.' % src)
         dest = dest_path_of('index.html')
         dest_tmp = dest.with_suffix('.tmp')
+        # create feed folder if it doesnt exist yet
+        os.makedirs(dest.parent, exist_ok=True)
         # set the pandoc command string
         command = 'pandoc -s -f markdown -t html --template=' + \
             str(summary_template) + \
@@ -1121,7 +1127,7 @@ def rss_feed_for_post(post: Path, fname: str):
     # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
     # (Note that post_metadata[post][0] contains only a date, and not a time) 
     datestr = date.strftime('%a, %d %b %Y 00:00:00 +0000')
-    # create a URL for the  post to be summarised
+    # create the URL linking to the post to be summarised
     post_url = item_url(post,Path('index.html'))
     post_path = src_path_of(post)                    
     rss_entry_template = get_template('ssst-rss-entry.html')
