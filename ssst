@@ -1116,7 +1116,7 @@ def make_home():
 # document; it is included in another page).
 # - post: post to summarise
 # - fname: name of file to store summary in
-def rss_feed_post(post: Path, fname: str):
+def rss_feed_for_post(post: Path, fname: str):
     date = post_metadata[post][0]
     # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
     # (Note that post_metadata[post][0] contains only a date, and not a time) 
@@ -1140,12 +1140,9 @@ def make_rss_feed():
     log(0,'Making RSS feed.')
     # get the 10 most recent posts 
     recent_posts = all_posts[0:10]
-    # get the current date and time and set the timezone
-    now = datetime.datetime.today().astimezone(ZoneInfo('UTC'))
-    # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
-    datestr = now.strftime('%a, %d %b %Y %H:%M:%S %z')
-    # creata a temorary direcotry to work in; will be deleted when with closes
+    # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
+        # first create summaries for each of the recent posts
         count = 0
         # string keeping track of which temporary rss feed file to include later
         pandoc_append_str = ''
@@ -1153,12 +1150,13 @@ def make_rss_feed():
             # create a temporary html file summarizing this entry for rss
             count = count + 1
             rss_feed_name = tmpdir + '/rss_feed.' + str(count) + '.html'
-            rss_feed_post(post,rss_feed_name)
             # and add this to the files to append when making the home page
-            pandoc_append_str = pandoc_append_str + ' -A ' + rss_feed_name 
+            pandoc_append_str = pandoc_append_str + ' -A ' + rss_feed_name
+            # create the html summary for the rss feed
+            rss_feed_for_post(post,rss_feed_name)
         # Create the RSS feed, including the summarized entries.    
         # The metadata in <src_path>/index.md will determine the title
-        # and subtitle
+        # and subtitle; use ssst-rss.html as template
         rss_template = get_template('ssst-rss.html')
         src = src_path_of('index.md')
         if not src.exists():
@@ -1166,7 +1164,12 @@ def make_rss_feed():
         dest = dest_path_of('feed/index.html')
         # create feed folder if it doesnt exist yet
         os.makedirs(dest.parent, exist_ok=True)
-        # set the pandoc command string
+        # get the current date and time and set the timezone
+        now = datetime.datetime.today().astimezone(ZoneInfo('UTC'))
+        # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
+        datestr = now.strftime('%a, %d %b %Y %H:%M:%S %z')
+        # set the pandoc command string to creat the rss feed html, merging
+        # in the entry summaries generated earlier
         command = 'pandoc -s -f markdown -t html --template=' + \
             str(rss_template) + \
             pandoc_append_str + \
@@ -1193,13 +1196,16 @@ def report_changes():
 
 # Create upload script that uploads all changed files in the destination
 def create_uploadscript ():
-    # create uploadscritp (if requested) and 
+    # create uploadscritp (if requested)
     if (uploadscript != ''):
         if (uploadcommand == ''):
             error('No upload command string specified')
         log(0,'Creating upload script')
         with open(uploadscript,'w') as f:
             for p in dest_root_changes:
+                # write the command to upload changed file, replacing the
+                # modifiers {path} and {file} in uploadcommand with the
+                # parent folder and the filename of the file
                 f.write(uploadcommand.format(
                     path = p.parent,
                     file = p.name
