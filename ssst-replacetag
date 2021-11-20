@@ -137,10 +137,10 @@ def process_post (item: Path, keyword: str, replacement: str):
             keywords = [ keywords ]
         # check if keyword in keywords, and if so, replace with replacement
         if keyword in keywords:
-            foundmsg = 'Keyword ' + keyword + ' found in ' + str(item) + '.'
+            foundmsg = 'Keyword \'' + keyword + '\' found in ' + str(item) + '.'
             if not dry:
                 if len(replacement) > 0: # replace or remove keyword 
-                    log(1,foundmsg + ' Replacing with ' + replacement)
+                    log(1,foundmsg + ' Replacing with \'' + replacement + '\'')
                     yaml_header['keywords'] = \
                         [ replacement if k == keyword else k for k in keywords]
                 else:
