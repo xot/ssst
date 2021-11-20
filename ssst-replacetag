@@ -124,7 +124,7 @@ def replace_yaml_header(item: Path, yaml_header):
     
 # Process all posts in the tree rooted at stc_root, and replace keyword
 # with replacement
-def process_post (item: Path ,keyword: str ,replacement: str):
+def process_post (item: Path, keyword: str, replacement: str):
     log(2,'Processing post: ' + str(item))
     yaml_header = get_yaml_dict(item)
     # warn for missing or unknown keywords/tags
@@ -139,9 +139,14 @@ def process_post (item: Path ,keyword: str ,replacement: str):
         if keyword in keywords:
             foundmsg = 'Keyword ' + keyword + ' found in ' + str(item) + '.'
             if not dry:
-                log(1,foundmsg + ' Replacing with ' + replacement)
-                yaml_header['keywords'] = \
-                    [ replacement if k == keyword else k for k in keywords]
+                if len(replacement) > 0: # replace or remove keyword 
+                    log(1,foundmsg + ' Replacing with ' + replacement)
+                    yaml_header['keywords'] = \
+                        [ replacement if k == keyword else k for k in keywords]
+                else:
+                    log(1,foundmsg + ' Removing it.')
+                    yaml_header['keywords'] = \
+                        [ k for k in keywords if not (k == keyword)]
                 replace_yaml_header(item,yaml_header)
             else:
                 log(1,foundmsg)
@@ -150,6 +155,15 @@ def process_post (item: Path ,keyword: str ,replacement: str):
 # with replacement
 def process_posts (keyword,replacement):
     log(0,'Processing posts.')
+    if dry:
+        log(0,'Looking for all occurances of \'' + keyword + '\'')
+    else: 
+        if len(replacement) == 0:
+            log(0,'Removing, not replacing, all occurances of \'' + \
+                keyword + '\'')
+        else:
+            log(0,'Replacing all occurances of \'' + \
+                keyword + '\' with \'' + replacement + '\'')
     # Find all posts (they have suffix .md) and process their metadata
     for item in src_files_with_suffix('.md'):
         process_post(item,keyword,replacement)
@@ -176,8 +190,8 @@ parser.add_argument('-b', '--backup', default = False, action='store_true',
                     help='Keep bakcup of source file when changed.')
 parser.add_argument('keyword',
                     help='Keyword')
-parser.add_argument('replacement',
-                    help='Replacement keyword')
+parser.add_argument('replacement', nargs = '?', default = '',
+                    help='Replacement keyword. If empty, keyword is removed')
 args = parser.parse_args()
 
 # Apply arguments and check validity

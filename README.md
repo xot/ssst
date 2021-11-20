@@ -111,13 +111,13 @@ The `ssst-replacetag` utility replaces all occurrences of a tag/keyword in all p
 ```
 usage: ssst-replacetag [-h] [-s SOURCE] [-v VERBOSITY] [-l LOGFILE] [-S] [-p]
                        [-d] [-b]
-                       keyword replacement
+                       keyword [replacement]
 
 SSST-replacetag. Replace a tag in a post.
 
 positional arguments:
   keyword               Keyword
-  replacement           Replacement keyword
+  replacement           Replacement keyword. If empty, keyword is removed
 
 optional arguments:
   -h, --help            show this help message and exit
