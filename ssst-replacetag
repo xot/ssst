@@ -76,13 +76,6 @@ def log(level: int, msg: str):
     if logfile != None:
         logfile.write(m)
 
-# Output a general log message
-# - msg: the log message
-def message(msg: str):
-    sys.stdout.write(msg)
-    if logfile != None:
-        logfile.write(msg)
-
 # ---
 # Utility
 # ---
@@ -145,13 +138,11 @@ def process_post (item: Path ,keyword: str ,replacement: str):
         # check if keyword in keywords, and if so, replace with replacement
         if keyword in keywords:
             foundmsg = 'Keyword ' + keyword + ' found in ' + str(item) + '.'
-            log(1,foundmsg + 'Replacing with ' + replacement)
+            log(1,foundmsg + ' Replacing with ' + replacement)
             if not dry:
                 yaml_header['keywords'] = \
                     [ replacement if k == keyword else k for k in keywords]
                 replace_yaml_header(item,yaml_header)
-            else:
-                message(foundmsg)
                 
 # Process all posts in the tree rooted at stc_root, and replace keyword
 # with replacement
@@ -195,6 +186,9 @@ loglevel = int(args.verbosity)
 logname = args.logfile
 backup = args.backup
 dry = args.dry
+# make sure logmessages with found keywords are actually displayed
+if dry and (loglevel < 1):
+    loglevel = 1
 silent = args.silent
 pedantic = args.pedantic
 
