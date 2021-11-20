@@ -109,7 +109,8 @@ optional arguments:
 The `ssst-replacetag` utility replaces all occurrences of a tag/keyword in all posts in the source tree with the supplied replacement.
 
 ```
-usage: ssst-replacetag [-h] [-s SOURCE] [-v VERBOSITY] [-l LOGFILE] [-p] [-b]
+usage: ssst-replacetag [-h] [-s SOURCE] [-v VERBOSITY] [-l LOGFILE] [-S] [-p]
+                       [-d] [-b]
                        keyword replacement
 
 SSST-replacetag. Replace a tag in a post.
@@ -127,7 +128,9 @@ optional arguments:
                         took place)
   -l LOGFILE, --logfile LOGFILE
                         Name of file to store all log messages in
+  -S, --silent          Suppress warning messages.
   -p, --pedantic        Abort after warning
+  -d, --dry             Only report found matches but don't change anything
   -b, --backup          Keep bakcup of source file when changed.
 ```
 

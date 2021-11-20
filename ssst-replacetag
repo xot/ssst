@@ -29,6 +29,12 @@ logfile = None
 # Abort after warning
 pedantic = False 
 
+# Only report found matches
+dry = False
+
+# Suppress warning messages
+silent = False
+
 # ---
 # ERRORS / LOGGING
 # ---
@@ -47,7 +53,8 @@ def error(msg: str):
 # - msg: the warning message
 def warning(msg: str):
     m = 'ssst-replacetag: warning: %s\n' % str(msg)
-    sys.stderr.write(m)
+    if not silent:
+        sys.stderr.write(m)
     if logfile != None:
         logfile.write(m)
     if pedantic:
@@ -58,7 +65,7 @@ def warning(msg: str):
 # specified 
 # - level: the log-level for this message
 # - msg: the log message
-def log (level: int, msg: str):
+def log(level: int, msg: str):
     if level == 0:
         m = '# '
     else:
@@ -68,6 +75,13 @@ def log (level: int, msg: str):
         sys.stdout.write(m)
     if logfile != None:
         logfile.write(m)
+
+# Output a general log message
+# - msg: the log message
+def message(msg: str):
+    sys.stdout.write(msg)
+    if logfile != None:
+        logfile.write(msg)
 
 # ---
 # Utility
@@ -130,12 +144,15 @@ def process_post (item: Path ,keyword: str ,replacement: str):
             keywords = [ keywords ]
         # check if keyword in keywords, and if so, replace with replacement
         if keyword in keywords:
-            log(1,'Keyword ' + keyword + ' found in ' + str(item) + '. Replacing with ' \
-                  + replacement)
-            yaml_header['keywords'] = \
-               [ replacement if k == keyword else k for k in keywords]
-            replace_yaml_header(item,yaml_header)
-            
+            foundmsg = 'Keyword ' + keyword + ' found in ' + str(item) + '.'
+            log(1,foundmsg + 'Replacing with ' + replacement)
+            if not dry:
+                yaml_header['keywords'] = \
+                    [ replacement if k == keyword else k for k in keywords]
+                replace_yaml_header(item,yaml_header)
+            else:
+                message(foundmsg)
+                
 # Process all posts in the tree rooted at stc_root, and replace keyword
 # with replacement
 def process_posts (keyword,replacement):
@@ -156,8 +173,12 @@ parser.add_argument('-v', '--verbosity', default=loglevel,
                     help='Verbosity (1, the default, reports which replacements took place)')
 parser.add_argument('-l', '--logfile', default='ssst-replacetag.log',
                     help='Name of file to store all log messages in')
+parser.add_argument('-S', '--silent', default = False, action='store_true',
+                    help='Suppress warning messages.')
 parser.add_argument('-p', '--pedantic', default = False, action='store_true',
                     help='Abort after warning')
+parser.add_argument('-d', '--dry', default = False, action='store_true',
+                    help='Only report found matches but don\'t change anything')
 parser.add_argument('-b', '--backup', default = False, action='store_true',
                     help='Keep bakcup of source file when changed.')
 parser.add_argument('keyword',
@@ -173,6 +194,9 @@ if not src_root.exists():
 loglevel = int(args.verbosity)
 logname = args.logfile
 backup = args.backup
+dry = args.dry
+silent = args.silent
+pedantic = args.pedantic
 
 # open logfile
 if logname != '':
