@@ -138,12 +138,14 @@ def process_post (item: Path ,keyword: str ,replacement: str):
         # check if keyword in keywords, and if so, replace with replacement
         if keyword in keywords:
             foundmsg = 'Keyword ' + keyword + ' found in ' + str(item) + '.'
-            log(1,foundmsg + ' Replacing with ' + replacement)
             if not dry:
+                log(1,foundmsg + ' Replacing with ' + replacement)
                 yaml_header['keywords'] = \
                     [ replacement if k == keyword else k for k in keywords]
                 replace_yaml_header(item,yaml_header)
-                
+            else:
+                log(1,foundmsg)
+            
 # Process all posts in the tree rooted at stc_root, and replace keyword
 # with replacement
 def process_posts (keyword,replacement):
