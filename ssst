@@ -841,7 +841,7 @@ def dump_archives():
                     archivef.write('\n## ' + str(archive_year) + '\n')
                 # write a link to this new archive to the main archive file
                 archivef.write('- [' + monthyear +'](' + \
-                               item_url(Path(archive_path),\
+                               item_url(archive_path,\
                                         Path('archives.sst')) + \
                                ')\n' )
                 # create a new delayed file for this monthly archive
@@ -860,7 +860,6 @@ def dump_archives():
     archive_paths_list.sort()
     # write prev/next pointers and close all archive files
     for i,archive_path in enumerate(archive_paths_list):
-        log(0,'archive-path:' + str(archive_path))
         outf = archive_paths[archive_path]
         # write separator
         outf.write('\n\n') 
@@ -1105,6 +1104,7 @@ def make_home():
     log(0,'Making home page.')
     # get the 5 most recent posts 
     recent_posts = all_posts[0:5]
+    first_remaining_post = all_posts[5]
     # creata a temorary direcotry to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
@@ -1135,6 +1135,7 @@ def make_home():
             str(summary_template) + \
             pandoc_append_str + \
             ' --metadata root=' + str(item_root(Path('index.html'))) + \
+            ' --metadata first=' + str(item_url(first_remaining_post,Path('index.html'))) + \
             ' -o '+ str(dest_tmp) + ' ' + str(src)
         run_shell_command(command)
         # replace file containing the home page only if its contents changed
