@@ -830,8 +830,8 @@ def dump_archives():
             date = post_metadata[post][0]
             archive_year = date.year
             monthyear = date.strftime('%B %Y')
-            archive_relative_path = date.strftime('%Y/%m/index.sst')
-            archive_path = src_path_of(archive_relative_path)
+            archive_path = Path(date.strftime('%Y/%m/index.sst'))
+            archive_src_path = src_path_of(archive_path)
             # if we are processing a new month
             if archive_path not in archive_paths:
                 # write a header every time the year changes to the main
@@ -841,12 +841,12 @@ def dump_archives():
                     archivef.write('\n## ' + str(archive_year) + '\n')
                 # write a link to this new archive to the main archive file
                 archivef.write('- [' + monthyear +'](' + \
-                               item_url(Path(archive_relative_path),\
+                               item_url(Path(archive_path),\
                                         Path('archives.sst')) + \
                                ')\n' )
                 # create a new delayed file for this monthly archive
                 log(3,'Creating new monthly archive ' + str(archive_path))
-                outf = DelayedTextfile(archive_path)
+                outf = DelayedTextfile(archive_src_path)
                 archive_paths[archive_path] = outf
                 # write the header for the new archive
                 outf.write('---\n')
@@ -854,10 +854,27 @@ def dump_archives():
                 outf.write('---\n')
             # append the entry to the monthly archive
             outf = archive_paths[archive_path]
-            dump_entry(post,archive_relative_path,outf)
-    # close all archive files
-    for archive_path in archive_paths:
-        archive_paths[archive_path].close()
+            dump_entry(post,archive_path,outf)
+    # get the archive paths in the correct order to dump next/prev pointers
+    archive_paths_list = list(archive_paths.keys())
+    archive_paths_list.sort()
+    # write prev/next pointers and close all archive files
+    for i,archive_path in enumerate(archive_paths_list):
+        log(0,'archive-path:' + str(archive_path))
+        outf = archive_paths[archive_path]
+        # write separator
+        outf.write('\n\n') 
+        # find next and previous archive and add links
+        if (i > 0):
+            prevurl = item_url(archive_paths_list[i-1],archive_path)
+            outf.write('[previous](' + prevurl + ') archive') 
+        if (i > 0) and (i < len(archive_paths_list)-1):
+            outf.write(' / ')
+        if (i < len(archive_paths_list)-1):
+            nexturl = item_url(archive_paths_list[i+1],archive_path)
+            outf.write('[next](' + nexturl + ') archive')
+        outf.write('\n\n') 
+        outf.close()
     
 # ---    
 # DETERMINE WORKLIST
