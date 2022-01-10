@@ -1063,20 +1063,21 @@ def substitute_localpath(matchobj) -> str:
 # summary will be included)
 # (Note: make sure that this template does NOT generate a standalone HTML
 # document; it is included in another page).
-# - post: post to summarise
+# - post: path to post to summarise
+# - container: path to page that will contain this summary
 # - fname: name of file to store summary in
-def summarize_post(post: Path, fname: str):
+def summarize_post(post: Path, container: Path, fname: str):
     global localpath_replacement
     date = post_metadata[post][0]
     # create the URL linking to the post to be summarised
-    post_url = item_url(post,Path('index.html'))
+    post_url = item_url(post,container)
     post_path = src_path_of(post)                    
     summary_entry_template = get_template('ssst-summary-entry.html')
     # set the pandoc command string
     command = 'head -n ' + str(summary_length) + ' ' + str(post_path) + \
             ' | pandoc -s -f markdown --template=' + str(summary_entry_template) + \
         ' --metadata entrydate="' + normalize_date(date) + '"' + \
-        ' --metadata root="' + str(item_root(Path('index.html'))) + '"' + \
+        ' --metadata root="' + str(item_root(container)) + '"' + \
         ' --metadata path="' + post_url + '"' + \
         ' -o '+ str(fname)
     run_shell_command(command)
@@ -1117,7 +1118,7 @@ def make_home():
             # and add this to the files to append when making the home page
             pandoc_append_str = pandoc_append_str + ' -A ' + summary_name
             # creat the html file summarizing the post for the homepage
-            summarize_post(post,summary_name)
+            summarize_post(post,Path('index.html'),summary_name)
         # Create the home page, including the summarized entries.    
         # Any content in <src_path>/index.md will be prepended before the
         # summarised posts; in particular its metadata determine the title
