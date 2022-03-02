@@ -30,7 +30,7 @@ SSST keeps track of files changed during the process, and can create a batch fil
 ```
 usage: ssst [-h] [-s SOURCE] [-d DESTINATION] [-r ROOT] [-t TEMPLATES]
             [-v VERBOSITY] [-l LOGFILE] [-u UPLOADSCRIPT] [-c UPLOADCOMMAND]
-            [-f] [-g] [-k] [-p] [-z SUMMARYLENGTH] [-o]
+            [-x DELETECOMMAND] [-f] [-g] [-k] [-p] [-z SUMMARYLENGTH] [-o]
 
 SSST. A simple static site tool to maintain websites based on markdown and
 pandoc.
@@ -54,6 +54,8 @@ optional arguments:
                         Name of script file to store upload commands in
   -c UPLOADCOMMAND, --uploadcommand UPLOADCOMMAND
                         Upload command string (with modifiers)
+  -x DELETECOMMAND, --deletecommand DELETECOMMAND
+                        Delete command string (with modifiers)
   -f, --force           (Re)make everything
   -g, --gladtex         Use pandoc --gladtex to process LaTeX equations.
   -k, --keepsimple      Do not process simple LaTex equations
