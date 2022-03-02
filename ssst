@@ -115,7 +115,7 @@ deletecommand = ''
 dest_root_changes = []
 
 # List of all files in dest_root that must be deleted
-# (includes dest_root!)
+# (relative to dest_root)
 dest_root_deletions = []
 
 # Dictionary of all tags, listing for each tag the relative pathnames for the posts with those tags
@@ -773,26 +773,17 @@ def dump_entry(entry,outname,outf):
     outf.write('- [' + title + '](' + item_url(entry,outname) + \
                ') (' + datestr + ')\n')    
 
-# List of existing pathnames of files storing  tag or category information
-# Used to keep track of files that are no longer needed and
-# can be deleted after tag and category files have been dumped
-pathnames_to_delete = []
-    
 # Create a markdown document into out_name (relative path)
 # (with title as title and label as subtitle)
 # containing a list of links to all posts in filelist
 # (assumed to be sorted by date)
 def dump_entries(out_name,type,label,filelist):
-    global pathnames_to_delete
     # sort the list of pathnames by date, most recent first
     # (using the fact that the path encodes the file date)
     filelist.sort(reverse=True)
     os.makedirs(src_folder_of(out_name),exist_ok=True)
     log(3,'Dumping to ' + str(out_name))
     out_pathname = src_path_of(out_name)
-    # remove generated file from the list of files to be deleted
-    if out_pathname in pathnames_to_delete:
-        pathnames_to_delete.remove(out_pathname)
     with DelayedTextfile(out_pathname) as outf:
         outf.write('---\n')
         outf.write("title: '" + label + "'\n")
@@ -812,7 +803,6 @@ def dump_entries(out_name,type,label,filelist):
 # Category and tag files previously generated but not now generated will be
 # pruned.
 def dump_cats_and_tags():
-    global pathnames_to_delete
     log(0,'Dumping category and tag files.')
     # get all category and tag information files; this is 
     # used to determine which files to delete because they are
@@ -830,6 +820,10 @@ def dump_cats_and_tags():
             cat_pathname = cat_pathname_of(cat)
             catsf.write('- [' + cat + '](' + item_url(cat_pathname,'.') + ')\n')
             dump_entries(cat_pathname,'Category',cat,posts_with_cat[cat])
+            # remove generated file from the list of files to be deleted
+            out_pathname = src_path_of(cat_pathname)
+            if out_pathname in pathnames_to_delete:
+                pathnames_to_delete.remove(out_pathname)
     tags_pathname = src_path_of('tags.sst')
     # DelayedTextfile will be written to disk when with closes
     # (and contents really chagned)
@@ -848,6 +842,10 @@ def dump_cats_and_tags():
                 tagsf.write('\n\n## ' + firstchar.upper() + '\n\n') 
             tagsf.write('- [' + tag + '](' + item_url(tag_pathname,'.') + ')\n')
             dump_entries(tag_pathname,'Tag',tag,posts_with_tag[tag])
+            # remove generated file from the list of files to be deleted
+            out_pathname = src_path_of(tag_pathname)
+            if out_pathname in pathnames_to_delete:
+                pathnames_to_delete.remove(out_pathname)
     # Prune any old category and tag files that are no longer needed
     if pathnames_to_delete:
         log(0,'The following category and tag files are no longer needed. Pruning.')
@@ -1115,16 +1113,18 @@ def make(item: Path):
     copy_media(item)
 
 # Make all items (posts, pages, and all generated .sst files)
-#
-# Prune any old items that have been generated earlier but that no longer exist
 def make_items():
-    global dest_root_deletions
     # determine all items that need to be updated and make them
     for item in worklist():
         make(item)
+
+# Prune any old items that have been generated earlier but for which the source
+# no longer exist
+def prune_items():
+    global dest_root_deletions
     # determine all .html files that exist, and schedule them for deletion
     # (unless the process below finds a source for them)
-    dest_root_deletions = list(dest_files_with_suffix('.html'))
+    dest_files = list(dest_files_with_suffix('.html'))
     # determine all sources for these html files that still exist
     src_files = list(src_files_with_suffix('.md')) + \
                 list(src_files_with_suffix('.sst'))
@@ -1132,19 +1132,20 @@ def make_items():
     for src in src_files:
         item = item_relpath(src)
         dest = dest_path_of(item)
-        if dest in dest_root_deletions:
-            dest_root_deletions.remove(dest)
+        if dest in dest_files:
+            dest_files.remove(dest)
     # Ignore the RSS feed file
     rss_dest = dest_path_of('feed/index.html')
-    if rss_dest in dest_root_deletions:
-        dest_root_deletions.remove(rss_dest)
-    # Prune old items
-    if dest_root_deletions:
+    if rss_dest in dest_files:
+        dest_files.remove(rss_dest)
+    # Prune old items and fill dest_root_deletions
+    dest_root_deletions = []
+    if dest_files:
         log(0,'The following items are old. Pruning.')
-        for f in dest_root_deletions:
+        for f in dest_files:
             log(1,f)
             f.unlink() # remove file
-
+            dest_root_deletions.append(f.relative_to(dest_root))
 # ---
 # MAKE HOME
 # ---
@@ -1339,14 +1340,15 @@ def report_changes():
     if not dest_root_changes:
         log(0,'No files changed in destination.')
     else:
-        if dest_root_changes:
-            log(0,'Files changed in destination:')
-            for p in dest_root_changes:
-                log(1,str(p))
-        if dest_root_deletions:
-            log(0,'Files deleted in destination:')
-            for p in dest_root_deletions:                
-                log(1,str(p.relative_to(dest_root)))
+        log(0,'Files changed in destination:')
+        for p in dest_root_changes:
+            log(1,str(p))
+    if not dest_root_deletions:
+        log(0,'No files deleted in destination.')
+    else:
+        log(0,'Files deleted in destination:')
+        for p in dest_root_deletions:                
+            log(1,str(p))
 
 # Create upload script that uploads all changed files in the destination
 def create_uploadscript ():
@@ -1368,7 +1370,6 @@ def create_uploadscript ():
                 ))
                 f.write('\n')
             for p in dest_root_deletions:
-                p = p.relative_to(dest_root)
                 # write the command to delete file, replacing the
                 # modifiers {path} and {file} in deletecommand with the
                 # parent folder and the filename of the file
@@ -1471,6 +1472,9 @@ dump_archives()
 # make all html files whose sources have changed
 # (this includes the .sst files just generated)
 make_items()
+
+# Prune any old items that have been generated earlier but that no longer exist
+prune_items()
 
 # create the home page containing a summary of the most recent posts
 make_home()
