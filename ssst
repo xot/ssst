@@ -409,6 +409,12 @@ def is_older(dest,src: Path):
 # PROCESS POSTS
 # ---
 
+# List of normalised tags seen, to detect different capitalisations of
+# tags (like iOS and Ios) that are considered different but would
+# be written to the same external tag file if the filesystem
+# is case-insensitive; one overwriting the other!!!
+normalised_tags = []
+
 # Process post metadata and store it in post_metadata[].
 # Determine the categories and the tags assiociated with a post 
 # and add its  pathname to the necessary categories and tag dictionaries
@@ -428,9 +434,9 @@ def process_post_metadata(post: Path):
             cats = [ cats ]
         for cat in cats:
             # make sure categoreis are stored in all lowercase
-            # (e.g. ios and iOS would otherwise be considered different tags
-            # but written to the same external tag file if the filesystem
-            # is case-insensitive; one overwrting the other!!!
+            # (e.g. ios and iOS would otherwise be considered different 
+            # but written to the same external file if the filesystem
+            # is case-insensitive; one overwriting the other!!!
             cat = cat.lower()
             if cat not in posts_with_cat:
                 posts_with_cat[cat] = []
@@ -445,6 +451,13 @@ def process_post_metadata(post: Path):
             # captilize without changing caps of other letters
             tag = tag[:1].capitalize() + tag[1:]
             if tag not in posts_with_tag:
+                # check if tag is not clashing with existing tag
+                normalised_tag = tag.lower()
+                if normalised_tag in normalised_tags:
+                    warning('Different capitalisation of ' + normalised_tag + \
+                        ' encountered.')
+                else:
+                    normalised_tags.append(normalised_tag)     
                 posts_with_tag[tag] = []
             posts_with_tag[tag].append(post_relpath)
     if 'title' in yaml:
@@ -1228,7 +1241,7 @@ def substitute_localpath(matchobj) -> str:
 # (Note: make sure that this template does NOT generate a standalone HTML
 # document; it is included in another page).
 # - post: path to post to summarise
-# - container: path to page that will contain this summary
+# - container: path to page that will contain this summary (used to fix urls)
 # - date_format: date format string
 # - template: template file name
 # - fname: name of file to store summary in
@@ -1241,10 +1254,10 @@ def summarize_post( post: Path, container: Path, date_format: str \
     # create the URL linking to the post to be summarised
     post_url = item_url(post,container)
     post_path = src_path_of(post)                    
-    summary_entry_template = get_template(template)
+    template_path = get_template(template)
     # set the pandoc command string
     command = 'head -n ' + str(summary_length) + ' ' + str(post_path) + \
-            ' | pandoc -s -f markdown --template=' + str(summary_entry_template) + \
+        ' | pandoc -s -f markdown --template=' + str(template_path) + \
         ' --metadata entrydate="' + datestr + '"' + \
         ' --metadata root="' + str(item_root(container)) + '"' + \
         ' --metadata path="' + post_url + '"' + \
@@ -1266,11 +1279,6 @@ def summarize_post( post: Path, container: Path, date_format: str \
     with open(fname,'w') as f:
         f.write(processed_html)
 
-# ---
-# MAKE HOME AND RSS FEED
-# ---
-
-
 # Make a summary of some posts
 # - posts: list of posts to summarise
 # - date_format_str: format string to use to format dates in summaries
@@ -1279,10 +1287,9 @@ def summarize_post( post: Path, container: Path, date_format: str \
 # - chain: first post after posts summarised
 # - src: src path (of driver .md file to structure summaries page)
 # - dest: destination path to write the summaries page to (as html)
-def summarize( posts: list, date_format_str: str \
-             , sub_template:str, template: str \
-             , chain: Path
-             , src: Path, dest: Path ):
+def summarize_posts( posts: list, date_format_str: str \
+                   , sub_template:str, template: str \
+                   , chain: Path, src_name: str, dest_name: str ):
     # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         # string keeping track of which temporary files to include later
@@ -1294,16 +1301,19 @@ def summarize( posts: list, date_format_str: str \
             i = i + 1
             summary_name = tmpdir + '/rss_feed.' + str(i) + '.html'
             # create the html summary for this entry
+            # FIXME: assumes summaries are stored in file at root of the tree
             summarize_post( post, Path('index.html') \
                           , date_format_str \
                           , sub_template, summary_name)
-            # and add this to the files to append when making the home page
+            # and add this to the files to append when making the summary page
             pandoc_append_str = pandoc_append_str + ' -A ' + summary_name
         # Create the main summary, including the summarized entries.    
         # The metadata in src will determine the title and subtitle
-        rss_template = get_template(template)
+        template_path = get_template(template)
+        src = src_path_of(src_name)
         if not src.exists():
           error('Summarize page input %s does not exist.' % src)
+        dest = dest_path_of(dest_name)
         dest_tmp = dest.with_suffix('.tmp')
         # create feed folder if it doesnt exist yet
         os.makedirs(dest.parent, exist_ok=True)
@@ -1313,19 +1323,22 @@ def summarize( posts: list, date_format_str: str \
         datestr = now.strftime('%a, %d %b %Y %H:%M:%S %z')
         # set the pandoc command string to create the summaries html, merging
         # in the entry summaries generated earlier
+        # FIXME: assumes summaries are stored in file at root of the tree
         command = 'pandoc -s -f markdown -t html --template=' + \
-            str(rss_template) + \
+            str(template_path) + \
             pandoc_append_str + \
             ' --metadata root=' + str(item_root(Path('index.html'))) + \
             ' --metadata date="' + datestr + '"' + \
-            ' --metadata first=' + \
-                str(item_url(chain,Path('index.html'))) + \
+            ' --metadata first=' + str(item_url(chain,Path('index.html'))) + \
             ' -o '+ str(dest_tmp) + ' ' + str(src)
         run_shell_command(command)
         # replace file containing the home page only if its contents changed
         changed = replace_when_changed(dest,dest_tmp)    
         return(changed)
 
+# ---
+# MAKE HOME AND RSS FEED
+# ---
 
 # Make the home page, containing a summary of the five most revent posts
 # Home page is generated using pandoc, with <templates>/ssst-homepage.html
@@ -1334,35 +1347,36 @@ def summarize( posts: list, date_format_str: str \
 def make_home() -> bool:
     log(0,'Making home page.')
     # if there are more than five posts, then append link to sixth post
+    # FIXME: make chaining more useful
     if len(all_posts) > 5:
         chain = all_posts[5]
     else:
         chain = None ;
-    result = summarize( all_posts[0:5] \
-                      , page_date_format_str \
-                      , 'ssst-summary-entry.html' \
-                      , 'ssst-homepage.html' \
-                      , chain \
-                      , src_path_of('index.md') \
-                      , dest_path_of('index.html') \
-                      )
+    result = summarize_posts( all_posts[0:5] \
+                            , page_date_format_str \
+                            , 'ssst-summary-entry.html' \
+                            , 'ssst-homepage.html' \
+                            , chain \
+                            , 'index.md' \
+                            , 'index.html' \
+                            )
     return(result)
 
 
 # Make the RSS feed
 def make_rss_feed():
     log(0,'Making RSS feed.')
-    result = summarize( all_posts[0:10] \
-                      , rss_date_format_str \
-                      , 'ssst-rss-entry.html' \
-                      , 'ssst-rss.html' \
-                      , None \
-                      , src_path_of('index.md') \
-                      , dest_path_of('feed/index.html') \
-                      )
+    result = summarize_posts( all_posts[0:10] \
+                            , rss_date_format_str \
+                            , 'ssst-rss-entry.html' \
+                            , 'ssst-rss.html' \
+                            , None \
+                            , 'index.md' \
+                            , 'feed/index.html' \
+                            )
     return(result)
-                        
-        
+
+
 # ---
 # REPORT CHANGES / CREATE UPLOAD SCRIPT
 # ---
@@ -1512,11 +1526,11 @@ deletions = prune_html_files()
 # create the home page containing a summary of the most recent posts
 # (mark changed if changed)
 if make_home():
-    changed.append('index.html')
+    changed.append(Path('index.html'))
     
 # create the rss feed
 make_rss_feed()
-changed.append('feed/index.html')
+changed.append(Path('feed/index.html'))
 
 # report all changed files
 report_changes(changed,deletions)
