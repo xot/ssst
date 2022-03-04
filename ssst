@@ -36,6 +36,10 @@ class DelayedTextfile(StringIO):
                 if oldcontents == newcontents:
                     log(5,'File not changed ' + str(self.path))
                     return False
+        # create parent directory; necessary if eg date in post
+        # doesn't correspond with path, so archive file will be
+        # written in an not-yet-existing path
+        os.makedirs(self.path.parent, exist_ok=True)
         with open(self.path,'w') as f:
             f.write(newcontents)
             log(5,'File changed ' + str(self.path))
@@ -109,14 +113,6 @@ deletecommand = ''
 # ---
 # OTHER GLOBAL VARIABLES
 # ---
-
-# List of all files in dest_root that changed in the process
-# (relative to dest_root)
-dest_root_changes = []
-
-# List of all files in dest_root that must be deleted
-# (relative to dest_root)
-dest_root_deletions = []
 
 # Dictionary of all tags, listing for each tag the relative pathnames for the posts with those tags
 # (filled by process_posts -> process_post_metadata) 
@@ -219,6 +215,15 @@ def src_folder_of(item: Path) -> Path:
 def src_path_of(item: Path) -> Path:
     return src_root / item
 
+# return full file path for a possible source (with suffix specified) for
+# the destination specified
+# - dest: destination to find the source for
+# - suffix: source suffix
+def possible_src_of(dest: Path, suffix: str) -> Path:
+    item = dest.relative_to(dest_root)
+    src = src_root / item
+    return(src.with_suffix(suffix))
+
 # Return the relative path (wrt src_root) for the full path leading to an item
 # -item: full path in source tree to item
 def item_relpath(item: Path) -> Path:
@@ -237,17 +242,24 @@ def dest_path_of (item: Path) -> Path:
     return dest.with_suffix('.html')
 
 # Return an iterator that iterates over all files in the tree rooted at
+# the specified root with the specified suffix
+# - root: root of the tree to scan
+# - suffix: suffix of files to return, including "."
+def all_files_with_suffix(root: Path, suffix: str):
+    return root.glob('**/*' + suffix)
+
+# Return an iterator that iterates over all files in the tree rooted at
 # src_root with the specified suffix
 # - suffix: suffix of files to return, including "."
 def src_files_with_suffix(suffix: str):
-    return Path(src_root).glob('**/*' + suffix)
+    return all_files_with_suffix(src_root,suffix)
 
 
 # Return an iterator that iterates over all files in the tree rooted at
 # dest_root with the specified suffix
 # - suffix: suffix of files to return, including "."
 def dest_files_with_suffix(suffix: str):
-    return Path(dest_root).glob('**/*' + suffix)
+    return all_files_with_suffix(dest_root,suffix)
 
 # Determine list of Paths containing the comments (empty if none) for the item
 # I.e. all files matching <src_root> / <parent_folder> / *.mdc
@@ -348,17 +360,18 @@ def get_template_or_default(name: Path, default: Path):
 # contents.
 # - current: file whose contents must be updated 
 # - update: file containing new content
-def replace_when_changed (current: Path, update: Path):
+# return: whether file changed
+def replace_when_changed (current: Path, update: Path) -> bool:
     if (not current.exists()) \
        or overwrite \
        or (not filecmp.cmp(current,update,shallow=False)): 
         log(5,'File changed ' + str(current))
-        dest_root_changes.append(current.relative_to(dest_root))
         update.rename(current)
+        return True
     else:
         log(5,'File not changed ' + str(current))
         update.unlink() # remove file
-
+        return False
 
 # Parse a date if it is a string, return unchanced otherwise.
 # (Only parses wordpress generated dates like 'Sun, 19 Apr 2020 08:42:00 +0000'
@@ -496,6 +509,9 @@ basefolder = ''
 # reset for every file
 equations = {}
 
+# list of svg file names that changed
+changed_svgs = []
+
 # Return the filename of the file to store the SVG for the i-th equation in
 def get_svg_file_name(i):
     return 'index.' + str(i) + '.svg'
@@ -510,9 +526,10 @@ def get_svg_path_name(i):
 # number of processed equations for that file
 # - latex_expr: latex expression (without surrounding $$)
 # - returns: the name of the SVG file in which the graphic is stored
-#   (relative to basename)
+#         (relative to basename)
 def process_eq(latex_expr):
     global eq_match_count
+    global changed_svgs
     eq_match_count = eq_match_count + 1
     # create the SVG output name
     svg_file_name = get_svg_file_name(eq_match_count) 
@@ -539,7 +556,8 @@ def process_eq(latex_expr):
         # create the SVG from the pdf
         run_shell_command('pdf2svg ' + tmp_pdf + ' ' + str(svg_tmp))
         # replace destination only when real changes occured
-        replace_when_changed(svg_path_name,svg_tmp)    
+        if replace_when_changed(svg_path_name,svg_tmp):
+            changed_svgs.append(svg_path_name.relative_to(dest_root))
     return svg_file_name
 
 # Match &lt;
@@ -580,7 +598,7 @@ def substitute_eq (matchobj):
             svg_file_name = equations[latex_expr]
         else:
             svg_file_name = process_eq(latex_expr)
-            equations[latex_expr]=svg_file_name
+            equations[latex_expr] = svg_file_name
         # return the <img> tag that points to the generated SVG
         return '<img class="latexeq"' \
             + ' src="' + svg_file_name + '"' \
@@ -601,13 +619,16 @@ plain_eq_re = re.compile(r'<span class="math inline">\$(.*?)\$</span>',re.DOTALL
 # expression eq_re)
 # - fname: full path of item to be processed (note: the parent is the folder
 #      in which any equation images are stored)
-def process_equations (fname):
+# return: list of changed cvg files
+def process_equations (fname) -> list:
     global eq_match_count
     global basefolder
     global equations
+    global changed_svgs
     log(2,'Processing equations.')
     eq_match_count = 0
     equations = {}
+    changed_svgs = []
     basefolder = fname.parent
     # open the file for reading
     with open(fname,'r') as f:
@@ -622,13 +643,15 @@ def process_equations (fname):
     with open(fname,'w') as f:
         f.write(processed_html)
     # remove any SVG fles containing equations from previous runs
+    # FIXME: PASS DELETED STATUS
     eq_match_count = eq_match_count + 1
     svg_path_name = get_svg_path_name(eq_match_count) 
     while svg_path_name.exists():
         svg_path_name.unlink() # remove file
         eq_match_count = eq_match_count + 1
         svg_path_name = get_svg_path_name(eq_match_count) 
-    
+    return changed_svgs
+
 # ---
 # MAKE ITEM
 # ---
@@ -653,6 +676,7 @@ def prev_post(item):
 
 # Make the html item from the md or sst source specified by item, merging
 # in any comments, and using item_template as the template
+# return: list of changed svg files
 def make_item(item,commentcount,comments,item_template):
     # create destination folder if it doesnt exist yet
     os.makedirs(dest_folder_of(item), exist_ok=True)
@@ -694,10 +718,8 @@ def make_item(item,commentcount,comments,item_template):
         ' -o '+ str(dest) + ' ' + str(src)
     run_shell_command(command)
     # process any equations in the output
-    process_equations(dest)
-    # record that destination has changed
-    dest_root_changes.append(dest.relative_to(dest_root))
-
+    changed_svgs = process_equations(dest)
+    return(changed_svgs)
     
 # ---
 # MAKE COMMENTS
@@ -1042,13 +1064,16 @@ def worklist ():
 
 # Copy all media associated with an item, keeping their metadata.
 # - item: path to item in the source tree
-def copy_media(item: Path):
+# return: mediafiles changed
+def copy_media(item: Path) -> list:
     log(2,'Copying mediafiles')
     dest_folder = dest_folder_of(item)
+    changed = []
     for f in mediafiles_for(item):
         log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
-        dest_root_changes.append(item_relpath(f))
+        changed.append(item_relpath(f))
         shutil.copy2(f,dest_folder) # keep metadata
+    return(changed)
 
 # Remove all non html and non .svg files (not diretories) from a folder
 # (Keep the html and svg files because that will be remade, and we want to check
@@ -1090,7 +1115,8 @@ def page_template(page,default):
 # Media files are copied to the destination folder if new, changed, or newer
 # than what is in the destination. Media files removed from the source are
 # removed from the destination.
-def make(item: Path):
+# return: list of changed files
+def make(item: Path) -> list:
     log(1,'Processing ' + str(src_path_of(item)))
     # Clean the destination folder (only for posts that are guaranteed
     # have separate folders!)
@@ -1109,43 +1135,56 @@ def make(item: Path):
             template = page_template(item,'ssst-page.html')
         # make the item using the specified template, merging in comments
         # in tmpdir
-        make_item(item,commentcount,tmpdir + '/comments.html',template)
-    copy_media(item)
+        changed = make_item(item,commentcount,tmpdir + '/comments.html' \
+                           ,template)
+    changed = changed + copy_media(item)
+    # mark the item itself as changed
+    changed = changed + [item]
+    return(changed)
 
 # Make all items (posts, pages, and all generated .sst files)
-def make_items():
-    # determine all items that need to be updated and make them
+# return a list of changed items
+def make_items() -> list:
+    changed = []
+    # determine all items that need to be updated 
     for item in worklist():
-        make(item)
+        # make them and record all changed files in the destination
+        changed = changed + make(item)
+    return(changed)
+
+# ---
+# PRUNING
+# ---
+
+# Prune any auxiliary files that have been generated earlier but were not
+# generated thios time
+# - generated: list of auxiliary files generated this time
+def prune_auxiliary_files (generated_files: list):
+    existing_files = src_files_with_suffix('.sst')
+    for f in existing_files:
+        if f not in generated_files:
+            f.unlink()
 
 # Prune any old items that have been generated earlier but for which the source
 # no longer exist
-def prune_items():
-    global dest_root_deletions
+def prune_html_files():
     # determine all .html files that exist, and schedule them for deletion
     # (unless the process below finds a source for them)
     dest_files = list(dest_files_with_suffix('.html'))
     # determine all sources for these html files that still exist
     src_files = list(src_files_with_suffix('.md')) + \
-                list(src_files_with_suffix('.sst'))
-    # remove destinations from the list for which a source still exists
-    for src in src_files:
-        item = item_relpath(src)
-        dest = dest_path_of(item)
-        if dest in dest_files:
-            dest_files.remove(dest)
-    # Ignore the RSS feed file
-    rss_dest = dest_path_of('feed/index.html')
-    if rss_dest in dest_files:
-        dest_files.remove(rss_dest)
-    # Prune old items and fill dest_root_deletions
-    dest_root_deletions = []
-    if dest_files:
-        log(0,'The following items are old. Pruning.')
-        for f in dest_files:
-            log(1,f)
-            f.unlink() # remove file
-            dest_root_deletions.append(f.relative_to(dest_root))
+                list(src_files_with_suffix('.sst')) + \
+                [src_path_of('feed/index.md')]  # dont delete feed!
+    deleted = []
+    for dest in dest_files:
+        md_src = possible_src_of(dest,'.md')
+        sst_src = possible_src_of(dest,'.sst')		
+        if ((md_src not in src_files) and (sst_src not in src_files)):
+            log(3,"Deleting " + str(dest))
+            dest.unlink()
+            deleted.append(dest.relative_to(dest_root))
+    return(deleted)
+
 # ---
 # MAKE HOME
 # ---
@@ -1217,11 +1256,11 @@ def summarize_post(post: Path, container: Path, fname: str):
 # Make the home page, containing a summary of the five most revent posts
 # Home page is generated using pandoc, with <templates>/ssst-homepage.html
 # as template and <src>/index.md as markdown input
-def make_home():
+# return: whether home changed
+def make_home() -> bool:
     log(0,'Making home page.')
     # get the 5 most recent posts 
     recent_posts = all_posts[0:5]
-    first_remaining_post = all_posts[5]
     # creata a temorary direcotry to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         count = 0
@@ -1243,6 +1282,12 @@ def make_home():
         src = src_path_of('index.md')
         if not src.exists():
           error('Home page input %s does not exist.' % src)
+        # if there are more than five posts, then append link to sixth post
+        if len(all_posts) > 5:
+            first_remaining_post = all_posts[5]
+            pandoc_append_str = pandoc_append_str + \
+                ' --metadata first=' + \
+                str(item_url(first_remaining_post,Path('index.html')))
         dest = dest_path_of('index.html')
         dest_tmp = dest.with_suffix('.tmp')
         # create feed folder if it doesnt exist yet
@@ -1252,12 +1297,11 @@ def make_home():
             str(summary_template) + \
             pandoc_append_str + \
             ' --metadata root=' + str(item_root(Path('index.html'))) + \
-            ' --metadata first=' + str(item_url(first_remaining_post,Path('index.html'))) + \
             ' -o '+ str(dest_tmp) + ' ' + str(src)
         run_shell_command(command)
         # replace file containing the home page only if its contents changed
-        replace_when_changed(dest,dest_tmp)    
-
+        changed = replace_when_changed(dest,dest_tmp)    
+        return(changed)
 
 # Summarise a post and write the summary to a file. Summary is generated using
 # pandoc with <templates>/ssst-rss-entry.html as template. The length of
@@ -1327,8 +1371,6 @@ def make_rss_feed():
             ' --metadata date="' + datestr + '"' + \
             ' -o '+ str(dest) + ' ' + str(src)
         run_shell_command(command)
-        # rss feed always changes (because the date inside always changes)
-        dest_root_changes.append(dest.relative_to(dest_root))
 
 
 # ---
@@ -1336,22 +1378,22 @@ def make_rss_feed():
 # ---
 
 # Report any changed and deleted destination files in the log
-def report_changes():
-    if not dest_root_changes:
+def report_changes(changed: list, deletions: list):
+    if not changed:
         log(0,'No files changed in destination.')
     else:
         log(0,'Files changed in destination:')
-        for p in dest_root_changes:
+        for p in changed:
             log(1,str(p))
-    if not dest_root_deletions:
+    if not deletions:
         log(0,'No files deleted in destination.')
     else:
         log(0,'Files deleted in destination:')
-        for p in dest_root_deletions:                
+        for p in deletions:                
             log(1,str(p))
 
 # Create upload script that uploads all changed files in the destination
-def create_uploadscript ():
+def create_uploadscript (changed: list, deletions: list):
     # create uploadscritp (if requested)
     if (uploadscript != ''):
         if (uploadcommand == ''):
@@ -1360,7 +1402,7 @@ def create_uploadscript ():
             error('No delete command string specified')
         log(0,'Creating upload script')
         with open(uploadscript,'w') as f:
-            for p in dest_root_changes:
+            for p in changed:
                 # write the command to upload changed file, replacing the
                 # modifiers {path} and {file} in uploadcommand with the
                 # parent folder and the filename of the file
@@ -1369,7 +1411,7 @@ def create_uploadscript ():
                     file = p.name
                 ))
                 f.write('\n')
-            for p in dest_root_deletions:
+            for p in deletions:
                 # write the command to delete file, replacing the
                 # modifiers {path} and {file} in deletecommand with the
                 # parent folder and the filename of the file
@@ -1471,22 +1513,26 @@ dump_archives()
 
 # make all html files whose sources have changed
 # (this includes the .sst files just generated)
-make_items()
+# store the list of changed items
+changed = make_items()
 
 # Prune any old items that have been generated earlier but that no longer exist
-prune_items()
+deletions = prune_html_files()
 
 # create the home page containing a summary of the most recent posts
-make_home()
-
+# (mark changed if changed)
+if make_home():
+    changed.append('index.html')
+    
 # create the rss feed
 make_rss_feed()
+changed.append('feed/index.html')
 
 # report all changed files
-report_changes()
+report_changes(changed,deletions)
 
 # create the upload script to upload all chaned files
-create_uploadscript()
+create_uploadscript(changed,deletions)
         
 # close the logfile if necessary
 if logfile != None:
