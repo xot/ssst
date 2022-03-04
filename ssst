@@ -677,7 +677,7 @@ def prev_post(item):
 # Make the html item from the md or sst source specified by item, merging
 # in any comments, and using item_template as the template
 # return: list of changed svg files
-def make_item(item,commentcount,comments,item_template):
+def make_item_merge_comments(item,commentcount,comments,item_template):
     # create destination folder if it doesnt exist yet
     os.makedirs(dest_folder_of(item), exist_ok=True)
     # blog-post path for reply links: strip the source prefix in front
@@ -784,7 +784,7 @@ def make_comments(item,tmpdir):
     return commentcount
 
 # ---
-# DUMP CATS AND TAGS ; ARCHIVES
+# GENERATE AUXILIARY FILES
 # ---
 
 # Write a link (entry_url) describing an entry (using its title and date)
@@ -801,7 +801,7 @@ def dump_entry(entry,outname,outf):
 # (assumed to be sorted by date)
 def dump_entries(out_name,type,label,filelist):
     # sort the list of pathnames by date, most recent first
-    # (using the fact that the path encodes the file date)
+    # (FIXME: using the fact that the path encodes the file date)
     filelist.sort(reverse=True)
     os.makedirs(src_folder_of(out_name),exist_ok=True)
     log(3,'Dumping to ' + str(out_name))
@@ -813,40 +813,21 @@ def dump_entries(out_name,type,label,filelist):
         outf.write('---\n')        
         for entry in filelist:
             dump_entry(entry,out_name,outf)
-                
-# Dump the category and tag dictionaries to the necessary pages in the
-# ./category/.. and ./tag/... directories in the src_root (SOURCE!) tree;
+
+
+# Generate all tag files in ./tag directories in the src_root (SOURCE!) tree;
 # These are markdown files (with suffix .sst) that will subsequently be
 # converted to html through the make routine
 #
 # Files whose contents would not change will not be touched; this way
 # make will ignore them as the timestamp remains unchanged
 #
-# Category and tag files previously generated but not now generated will be
-# pruned.
-def dump_cats_and_tags():
-    log(0,'Dumping category and tag files.')
-    # get all category and tag information files; this is 
-    # used to determine which files to delete because they are
-    # no longer generated; list pruned by dump_entries()
-    pathnames_to_delete = list(existing_cat_pathnames()) + \
-        list(existing_tag_pathnames())
-    categories_pathname = src_path_of('categories.sst')
-    # DelayedTextfile will be written to disk when with closes
-    # (and contents really chagned)
-    with DelayedTextfile(categories_pathname) as catsf:        
-        catsf.write('---\n')
-        catsf.write("title: 'Categories'\n")
-        catsf.write('---\n\n')
-        for cat in sorted(list(posts_with_cat)):
-            cat_pathname = cat_pathname_of(cat)
-            catsf.write('- [' + cat + '](' + item_url(cat_pathname,'.') + ')\n')
-            dump_entries(cat_pathname,'Category',cat,posts_with_cat[cat])
-            # remove generated file from the list of files to be deleted
-            out_pathname = src_path_of(cat_pathname)
-            if out_pathname in pathnames_to_delete:
-                pathnames_to_delete.remove(out_pathname)
+# return: the list of all generated files (including unchanged ones) 
+def generate_tag_files () -> list:
+    log(0,'Generating tag files.')
     tags_pathname = src_path_of('tags.sst')
+    # keep track of generated files
+    generated = [tags_pathname]
     # DelayedTextfile will be written to disk when with closes
     # (and contents really chagned)
     with DelayedTextfile(tags_pathname) as tagsf:        
@@ -857,24 +838,48 @@ def dump_cats_and_tags():
         # written to output
         firstchar = ''
         for tag in sorted(list(posts_with_tag), key=str.lower):
-            tag_pathname = tag_pathname_of(tag)
-            # output a header for each alphabetical change
+            # output a header to the tags file for each alphabetical change
             if firstchar != tag[0]:
                 firstchar = tag[0]
                 tagsf.write('\n\n## ' + firstchar.upper() + '\n\n') 
+            tag_pathname = tag_pathname_of(tag)
             tagsf.write('- [' + tag + '](' + item_url(tag_pathname,'.') + ')\n')
             dump_entries(tag_pathname,'Tag',tag,posts_with_tag[tag])
-            # remove generated file from the list of files to be deleted
-            out_pathname = src_path_of(tag_pathname)
-            if out_pathname in pathnames_to_delete:
-                pathnames_to_delete.remove(out_pathname)
-    # Prune any old category and tag files that are no longer needed
-    if pathnames_to_delete:
-        log(0,'The following category and tag files are no longer needed. Pruning.')
-        for p in pathnames_to_delete:
-            log(1,p)
-            p.unlink() # remove file
+            generated.append(src_path_of(tag_pathname))
+    # return the list of all generated files
+    return(generated)
 
+
+# Generate all category files in ./category directories in the
+# src_root (SOURCE!) tree;
+# These are markdown files (with suffix .sst) that will subsequently be
+# converted to html through the make routine
+#
+# Files whose contents would not change will not be touched; this way
+# make will ignore them as the timestamp remains unchanged
+#
+# return: the list of all generated files (including unchanged ones) 
+def generate_category_files () -> list:
+    log(0,'Generating category files.')
+    categories_pathname = src_path_of('categories.sst')
+    # keep track of generated files
+    generated = [categories_pathname]
+    # DelayedTextfile will be written to disk when with closes
+    # (and contents really chagned)
+    with DelayedTextfile(categories_pathname) as catsf:        
+        catsf.write('---\n')
+        catsf.write("title: 'Categories'\n")
+        catsf.write('---\n\n')
+        for cat in sorted(list(posts_with_cat)):
+            cat_pathname = cat_pathname_of(cat)
+            catsf.write('- [' + cat + '](' + item_url(cat_pathname,'.') + ')\n')
+            dump_entries(cat_pathname,'Category',cat,posts_with_cat[cat])
+            generated.append( src_path_of(cat_pathname) )
+    # return the list of all generated files
+    return(generated)
+
+            
+            
 # return a sort key for an entry such that entries are sorted
 # by decreasing year, but increasing month and day
 def archive_sort_key(entry):
@@ -890,9 +895,9 @@ def archive_sort_key(entry):
 # Files whose contents would not change will not be touched; this way
 # make will ignore them as the timestamp remains unchanged
 #
-# Archive files previously generated but not now generated will be pruned.
-def dump_archives():
-    log(0,'Dumping archives.')
+# return: the list of generated files (including unchanged ones)  
+def generate_archive_files () -> list:
+    log(0,'Generating archives.')
     last_year_archived = 0
     # dictionary with DelayedTextFile descriptors, indexed by archivepath
     archive_paths = {}
@@ -902,11 +907,13 @@ def dump_archives():
     archive_posts = all_posts.copy()
     archive_posts.sort(key=archive_sort_key)
     # create the root archive file (as a DelayedTextfile
-    archive = src_path_of('archives.sst')
-    log(3,'Writing all archives to ' + str(archive))
+    archives_pathname = src_path_of('archives.sst')
+    # keep track of generated files
+    generated = [archives_pathname]
+    log(3,'Writing all archives to ' + str(archives_pathname))
     # DelayedTextfile will be written to disk when with closes
     # (and contents really chagned)
-    with DelayedTextfile(archive) as archivef:        
+    with DelayedTextfile(archives_pathname) as archivef:        
         archivef.write('---\n')
         archivef.write("title: 'Archives'\n")
 #        archivef.write("template: 'ssst-archives.html'\n")
@@ -922,6 +929,7 @@ def dump_archives():
             monthyear = date.strftime('%B %Y')
             archive_path = Path(date.strftime('%Y/%m/index.sst'))
             archive_src_path = src_path_of(archive_path)
+            generated.append(archive_src_path)
             # if we are processing a new month
             if archive_path not in archive_paths:
                 # write a header every time the year changes to the main
@@ -964,21 +972,18 @@ def dump_archives():
             outf.write('[next](' + nexturl + ') archive')
         outf.write('\n\n') 
         outf.close()
-    # determine which previously generated archive files are no longer needed
-    generated_archive_paths = list(archive_paths.keys())
-    all_existing_archive_paths = \
-        list(Path(src_root).glob('[0-9][0-9][0-9][0-9]/[0-9][0-9]/index.sst'))
-    for p in generated_archive_paths:
-        full_p = src_path_of(p)
-        if full_p in all_existing_archive_paths:
-            all_existing_archive_paths.remove(full_p)
-    # Prune archive files that are no longer needed
-    if all_existing_archive_paths:
-        log(0,'The following archive files are no longer needed. Pruning.')
-        for a in all_existing_archive_paths:
-            log(1,a)
-            a.unlink() # remove file
-    
+    # return the list of all generated files
+    return(generated)
+
+
+# Generate all auxiliary files (tags, catgories, archives)
+# return: the list of generated files 
+def generate_auxiliary_files () -> list:
+    generated = generate_tag_files()
+    generated = generated + generate_category_files() 
+    generated = generated + generate_archive_files()
+    return(generated)
+            
 # ---    
 # DETERMINE WORKLIST
 # ---
@@ -1112,11 +1117,12 @@ def page_template(page,default):
 # than the destination, so we have to make sure that the timestamp changes (even
 # if the actual contents do not change) or else this item will be remade forever
 #
+# FIXME: THIS IS A LIE
 # Media files are copied to the destination folder if new, changed, or newer
 # than what is in the destination. Media files removed from the source are
 # removed from the destination.
 # return: list of changed files
-def make(item: Path) -> list:
+def make_item(item: Path) -> list:
     log(1,'Processing ' + str(src_path_of(item)))
     # Clean the destination folder (only for posts that are guaranteed
     # have separate folders!)
@@ -1126,6 +1132,7 @@ def make(item: Path) -> list:
     # create a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         # make comments, stores result in tmpdir/comments.html
+        # FIXME: this also tries to make comments for auxiliary files
         commentcount = make_comments(item,tmpdir)
         if is_post(item):
             log(2,'Processing post')
@@ -1135,8 +1142,8 @@ def make(item: Path) -> list:
             template = page_template(item,'ssst-page.html')
         # make the item using the specified template, merging in comments
         # in tmpdir
-        changed = make_item(item,commentcount,tmpdir + '/comments.html' \
-                           ,template)
+        changed = make_item_merge_comments(item,commentcount, \
+                            tmpdir + '/comments.html',template)
     changed = changed + copy_media(item)
     # mark the item itself as changed
     changed = changed + [item]
@@ -1149,7 +1156,7 @@ def make_items() -> list:
     # determine all items that need to be updated 
     for item in worklist():
         # make them and record all changed files in the destination
-        changed = changed + make(item)
+        changed = changed + make_item(item)
     return(changed)
 
 # ---
@@ -1163,6 +1170,7 @@ def prune_auxiliary_files (generated_files: list):
     existing_files = src_files_with_suffix('.sst')
     for f in existing_files:
         if f not in generated_files:
+            log(3,"Pruning auxiliary file " + str(f))
             f.unlink()
 
 # Prune any old items that have been generated earlier but for which the source
@@ -1180,7 +1188,7 @@ def prune_html_files():
         md_src = possible_src_of(dest,'.md')
         sst_src = possible_src_of(dest,'.sst')		
         if ((md_src not in src_files) and (sst_src not in src_files)):
-            log(3,"Deleting " + str(dest))
+            log(3,"Pruning destination file " + str(dest))
             dest.unlink()
             deleted.append(dest.relative_to(dest_root))
     return(deleted)
@@ -1503,13 +1511,19 @@ process_posts()
 #
 # make sure not to touch files whose contents do not change (so they do not
 # show up as a worklist() item and will be skipped by make())
-dump_cats_and_tags()
+#dump_cats_and_tags()
 
 # dump all archive files ./yyyy/mm/index.sst and ./archives.sst
 #
 # make sure not to touch files whose contents do not change (so they do not
 # show up as a worklist() item and will be skipped by make())
-dump_archives()
+#dump_archives()
+
+# Generate all auxiliary files, and return a list of all generated files
+generated = generate_auxiliary_files()
+
+# Prune any old auxiliary files
+prune_auxiliary_files(generated)
 
 # make all html files whose sources have changed
 # (this includes the .sst files just generated)
