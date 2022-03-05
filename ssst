@@ -455,7 +455,7 @@ def process_post_metadata(post: Path):
                 normalised_tag = tag.lower()
                 if normalised_tag in normalised_tags:
                     warning('Different capitalisation of ' + normalised_tag + \
-                        ' encountered.')
+                            ' encountered in ' + str(post) + ".")
                 else:
                     normalised_tags.append(normalised_tag)     
                 posts_with_tag[tag] = []
@@ -1381,49 +1381,45 @@ def make_rss_feed():
 # REPORT CHANGES / CREATE UPLOAD SCRIPT
 # ---
 
-# Report any changed and deleted destination files in the log
-def report_changes(changed: list, deletions: list):
-    if not changed:
-        log(0,'No files changed in destination.')
+# report all files in the list in the log
+def report(l: list, m: str):
+    if not l:
+        log(0,'No files ' + m + ".")
     else:
-        log(0,'Files changed in destination:')
-        for p in changed:
-            log(1,str(p))
-    if not deletions:
-        log(0,'No files deleted in destination.')
-    else:
-        log(0,'Files deleted in destination:')
-        for p in deletions:                
+        log(0,'Files ' + m + ":")
+        for p in l:
             log(1,str(p))
 
+# Report any changed and deleted destination files in the log
+def report_changes(changed: list, deletions: list):
+    report(changed,'changed in destination')
+    report(deletions,'deleted in destination')    
+
+# write the command to f, replacing the
+# modifiers {path} and {file} in command with the
+# parent folder and the filename of the p    
+def write_script_command ( p:Path, command: str, f):
+    f.write(command.format(
+        path = p.parent,
+        file = p.name
+    ))
+    f.write('\n')
+    
 # Create upload script that uploads all changed files in the destination
 def create_uploadscript (changed: list, deletions: list):
-    # create uploadscritp (if requested)
+    # create uploadscritp (if requested); check for commands
     if (uploadscript != ''):
         if (uploadcommand == ''):
             error('No upload command string specified')
         if (deletecommand == ''):
             error('No delete command string specified')
         log(0,'Creating upload script')
+        # now create the upload script
         with open(uploadscript,'w') as f:
             for p in changed:
-                # write the command to upload changed file, replacing the
-                # modifiers {path} and {file} in uploadcommand with the
-                # parent folder and the filename of the file
-                f.write(uploadcommand.format(
-                    path = p.parent,
-                    file = p.name
-                ))
-                f.write('\n')
+                write_script_command(p,uploadcommand,f)
             for p in deletions:
-                # write the command to delete file, replacing the
-                # modifiers {path} and {file} in deletecommand with the
-                # parent folder and the filename of the file
-                f.write(deletecommand.format(
-                    path = p.parent,
-                    file = p.name
-                ))
-                f.write('\n')
+                write_script_command(p,deletecommand,f)
 
 
 # ---
@@ -1507,20 +1503,20 @@ process_posts()
 # - archive files in ./yyyy/mm/index.sst and
 # - the overviews ./categories.sst and ./tags.sst and  ./archives.sst
 #
-# make sure not to touch files whose contents do not change (so they do not
+# (make sure not to touch files whose contents do not change, so they do not
 # show up as a worklist() item and will be skipped by make())
 generated = generate_auxiliary_files()
 
-# Prune any old auxiliary files
+# Prune any old auxiliary files that have been generated earlier but are no
+# longer needed (eg because tag or vatergory no longert exists)
 prune_auxiliary_files(generated)
 
-# make all html files whose sources have changed
-# (this includes the .sst files just generated)
-# store the list of changed items
+# make all html files whose sources have changed (this includes the .sst files
+# just generated), and store the list of changed items
 changed = make_items()
 
 # Prune any old items that have been generated earlier but for which a source
-# no longer exist
+# no longer exist, and store the list of deleted items
 deletions = prune_html_files()
 
 # create the home page containing a summary of the most recent posts
@@ -1528,7 +1524,8 @@ deletions = prune_html_files()
 if make_home():
     changed.append(Path('index.html'))
     
-# create the rss feed
+# create the rss feed; the rss feed always changes (because it containt the
+# current date)
 make_rss_feed()
 changed.append(Path('feed/index.html'))
 
