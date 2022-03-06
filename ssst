@@ -192,13 +192,15 @@ def run_shell_command(command: str):
 #
 # - src : item to process (relative to src)
 # - dest_path : full path of destination file
+# - container : item in which processed file is included (src if not)
+#   (used to determine root and  path metadata)
 # - summarize: if true, include only summary_length lines of the input
 # - template: name of template to use
 # - appends: other html files pandoc should append (-A)
 # - metadata: dictionary of metadata items to include in the pandoc commandline
 #  (--metadata); only items with a value != '' are included
 # - datestr: string representing date, to be included as metadata as well
-def pandoc ( src: Path, dest_path: str, summarize: bool \
+def pandoc ( src: Path, dest_path: str, container: Path, summarize: bool \
            , template: str, appends: list, metadata, datestr: str):
     src_path = src_path_of(src)
     if not src_path.exists():
@@ -214,6 +216,8 @@ def pandoc ( src: Path, dest_path: str, summarize: bool \
         append_str = append_str + ' -A ' + str(a)
     # create metadata string; include date metadata
     metadata['date'] = datestr
+    metadata['root'] = str(item_root(container))
+    metadata['path'] = str(item_url(src,container))    
     metadata_str = ''
     for m in metadata:
         if str(metadata[m]) != '':
@@ -426,7 +430,7 @@ def parse_date (s) -> datetime.date:
         return s
 
 # Date format string constants
-rss_date_format_str = '%a, %d %b %Y 00:00:00 +0000'
+rss_date_format_str = '%a, %d %b %Y %H:%M:%S +0000'
 page_date_format_str = '%B %-d, %Y'
     
 # Minimum amount of milliseconds difference between destination and source 
@@ -728,7 +732,7 @@ def prev_post(item):
 
 # Make the html item from the md or sst source specified by item, merging
 # in any comments, and using item_template as the template
-# return: list of changed svg files
+# return: list of changed svg files and the destination of the item itself
 def make_item_merge_comments(item,commentcount,comments,template):
     dest = dest_path_of(item)
     # create destination folder if it doesnt exist yet
@@ -738,7 +742,6 @@ def make_item_merge_comments(item,commentcount,comments,template):
     reply_path = str(item.parent) + '/comment.'
     # build the metadata dictionary
     metadata = { 'reply' : reply_path
-               , 'root' : str(item_root(item))
                , 'next' : item_url(next_post(item),item)
                , 'prev' : item_url(prev_post(item),item) }
     if commentcount > 0:
@@ -748,9 +751,10 @@ def make_item_merge_comments(item,commentcount,comments,template):
        datestr = date.strftime(page_date_format_str)
     else:
        datestr = ''
-    pandoc(item,dest,False,template,[ comments ],metadata,datestr)
+    pandoc(item, dest, item, False, template, [ comments ], metadata, datestr)
     # process any equations in the output
     changed_svgs = process_equations(dest)
+    changed_svgs.append(dest)
     return(changed_svgs)
     
 # ---
@@ -798,12 +802,11 @@ def make_comments(item,tmpdir):
         # filename to store html converted comment in (in tmpdir)
         outf = tmpdir + '/' + str(c.name)[:-3] + 'html'
         # blog-post path and comment depth indicator for reply links
-        # strip the source prefix in front and mdc from the back
+        # strip mdc from the back
         reply_path = str(rel_c)[:-3]
         log(3,'Making comment HTML ' + outf)
-        metadata = { 'reply' : reply_path
-                   , 'title' : None }
-        pandoc(rel_c,outf,False,'ssst-comment.html',[],metadata,'')
+        metadata = { 'reply' : reply_path }
+        pandoc(rel_c, outf, rel_c, False, 'ssst-comment.html', [], metadata, '')
     # now recursively fold in comments created in tmpdir
     comments = fold_comments(tmpdir + '/comment')
     log(5,comments)
@@ -854,7 +857,8 @@ def dump_entries(out_name,type,label,filelist):
 # return: the list of all generated files (including unchanged ones) 
 def generate_tag_files () -> list:
     log(0,'Generating tag files.')
-    tags_pathname = src_path_of('tags.sst')
+    tags_name = 'tags.sst'
+    tags_pathname = src_path_of(tags_name)
     # keep track of generated files
     generated = [tags_pathname]
     # DelayedTextfile will be written to disk when with closes
@@ -872,7 +876,8 @@ def generate_tag_files () -> list:
                 firstchar = tag[0]
                 tagsf.write('\n\n## ' + firstchar.upper() + '\n\n') 
             tag_pathname = tag_pathname_of(tag)
-            tagsf.write('- [' + tag + '](' + item_url(tag_pathname,'.') + ')\n')
+            tagsf.write( '- [' + tag + '](' \
+                       + item_url(tag_pathname,tags_name) + ')\n')
             dump_entries(tag_pathname,'Tag',tag,posts_with_tag[tag])
             generated.append(src_path_of(tag_pathname))
     # return the list of all generated files
@@ -890,7 +895,8 @@ def generate_tag_files () -> list:
 # return: the list of all generated files (including unchanged ones) 
 def generate_category_files () -> list:
     log(0,'Generating category files.')
-    categories_pathname = src_path_of('categories.sst')
+    categories_name = 'categories.sst'
+    categories_pathname = src_path_of(categories_name)
     # keep track of generated files
     generated = [categories_pathname]
     # DelayedTextfile will be written to disk when with closes
@@ -901,7 +907,8 @@ def generate_category_files () -> list:
         catsf.write('---\n\n')
         for cat in sorted(list(posts_with_cat)):
             cat_pathname = cat_pathname_of(cat)
-            catsf.write('- [' + cat + '](' + item_url(cat_pathname,'.') + ')\n')
+            catsf.write( '- [' + cat + '](' \
+                       + item_url(cat_pathname,categories_name) + ')\n')
             dump_entries(cat_pathname,'Category',cat,posts_with_cat[cat])
             generated.append( src_path_of(cat_pathname) )
     # return the list of all generated files
@@ -1178,8 +1185,6 @@ def make_item(item: Path) -> list:
         changed = make_item_merge_comments(item,commentcount, \
                             tmpdir + '/comments.html',template)
     changed = changed + copy_media(item)
-    # mark the item itself as changed
-    changed = changed + [item]
     return(changed)
 
 # Make all items (posts, pages, and all generated .sst files)
@@ -1266,18 +1271,16 @@ def substitute_localpath(matchobj) -> str:
 # - fname: name of file to store summary in
 def summarize_post( post: Path, container: Path, date_format: str \
                   , template: str, fname: str):
-    global localpath_replacement
     # get string representation of date
     date = post_metadata[post][0]
     datestr = date.strftime(date_format)
-    metadata = { 'path' : item_url(post,container)
-               , 'root' : str(item_root(container)) }
-    pandoc(post,fname,True,template,[],metadata,datestr)
+    pandoc(post, fname, container, True, template, [], {}, datestr)
     # fix any local links in the output (that point to local media in the
     # directory containing the post) by replacing them with their full path
     # from the root of the destination tree (where the home page is where this
     # summary will be included)
     # FIXME: this assumes that summaries are only included in the home page
+    global localpath_replacement
     localpath_replacement = str(post.parent)
     with open(fname,'r') as f:
         # read the file as one string
@@ -1323,16 +1326,15 @@ def summarize_posts( posts: list, date_format_str: str \
         dest_tmp = dest.with_suffix('.tmp')
         # create destination folder if it doesnt exist yet
         os.makedirs(dest.parent, exist_ok=True)
-        # get the current date and time and set the timezone; only used by RSS
-        # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
+        # get the current date and time in UTC and convert to full datestr
         now = datetime.datetime.today().astimezone(ZoneInfo('UTC'))
-        datestr = now.strftime('%a, %d %b %Y %H:%M:%S %z')
+        datestr = now.strftime(rss_date_format_str)
         # execute pandoc to create the summaries html, merging
         # in the entry summaries generated earlier
         # FIXME: assumes summaries are stored in file at root of the tree
-        metadata = { 'first' : str(item_url(chain,Path('index.html')))
-                   , 'root' : str(item_root(src_name)) }
-        pandoc(src_name,dest_tmp,False,template,appends,metadata,datestr)
+        metadata = { 'first' : str(item_url(chain,Path('index.html'))) }
+        src = Path(src_name)
+        pandoc(src, dest_tmp, src, False, template, appends, metadata, datestr)
         # replace file containing the home page only if its contents changed
         changed = replace_when_changed(dest,dest_tmp)    
         return(changed)
