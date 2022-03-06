@@ -188,38 +188,46 @@ def run_shell_command(command: str):
 # PANDOC PROCESSING
 # ---
 
-def pandoc ( item: Path, dest, summarize: bool \
-             , template, appends: list, metadata, datestr: str):
-    src = src_path_of(item)
-    if not src.exists():
+# Process a markdown source file to create the corresponding html destination
+#
+# - src : item to process (relative to src)
+# - dest_path : full path of destination file
+# - summarize: if true, include only summary_length lines of the input
+# - template: name of template to use
+# - appends: other html files pandoc should append (-A)
+# - metadata: dictionary of metadata items to include in the pandoc commandline
+#  (--metadata); only items with a value != '' are included
+# - datestr: string representing date, to be included as metadata as well
+def pandoc ( src: Path, dest_path: str, summarize: bool \
+           , template: str, appends: list, metadata, datestr: str):
+    src_path = src_path_of(src)
+    if not src_path.exists():
         error('Page input %s does not exist.' % src)
     tpath = get_template(template)
     if use_gladtex:
         gladtex_str = ' --gladtex '
     else:
         gladtex_str = ''
+    # create append string
     append_str = ''
-    # appends
     for a in appends:
         append_str = append_str + ' -A ' + str(a)
-    # metadata
-    # FIXME: rename entrydate into date in template
+    # create metadata string; include date metadata
     metadata['date'] = datestr
-    metadata['entrydate'] = datestr
     metadata_str = ''
     for m in metadata:
         if str(metadata[m]) != '':
             metadata_str = metadata_str + \
                 ' --metadata ' + str(m) + '="' + str(metadata[m]) + '"'
     if summarize:
-        command = 'head -n ' + str(summary_length) + ' ' + str(src) \
+        command = 'head -n ' + str(summary_length) + ' ' + str(src_path) \
             + ' | pandoc -s -f markdown -t html --template=' + str(tpath) \
             + gladtex_str + append_str + metadata_str \
-            + ' -o '+ str(dest) 
+            + ' -o '+ str(dest_path) 
     else:
         command = 'pandoc -s -f markdown -t html --template=' + str(tpath) \
             + gladtex_str + append_str + metadata_str \
-            + ' -o '+ str(dest) + ' ' + str(src)
+            + ' -o '+ str(dest_path) + ' ' + str(src_path)
     run_shell_command(command)
     
 
@@ -383,17 +391,6 @@ def get_template(name: Path):
     if not template.exists():
         error('Template %s not found' % template)
     return template
-
-# FIXME: this no longer returns a full path, but just the name of the
-# tempalte file; probably nonsensical now
-# Return the full path for a template, throw error if it does not exist
-# - name: template file name to be found in the template directory
-# - default: default template file to be used if name does not exist
-def get_template_or_default(name: Path, default: Path):
-    template = templates / name        
-    if not template.exists():
-        return default
-    return name
 
 # ---
 # OTHER FUNCTIONS
@@ -1141,7 +1138,11 @@ def page_template(page,default):
         template = 'ssst-tags.html'
     elif str(page) == 'categories.sst':
         template = 'ssst-categories.html'
-    return get_template_or_default(template,default)
+    template_path = templates / template        
+    if template_path.exists():
+        return template
+    else:
+        return default
 
 # Make the output (in dest_root) for the item (from src_root). The output
 # replaces what is in the destination always (and dest_root_changes updated
