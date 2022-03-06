@@ -183,7 +183,46 @@ def run_shell_command(command: str):
     result = subprocess.run(command,text=True,shell=True,capture_output=True)
     if result.returncode != 0:
         error(result.stderr)
+
+# ---
+# PANDOC PROCESSING
+# ---
+
+def pandoc ( item: Path, dest, summarize: bool \
+             , template, appends: list, metadata, datestr: str):
+    src = src_path_of(item)
+    if not src.exists():
+        error('Page input %s does not exist.' % src)
+    tpath = get_template(template)
+    if use_gladtex:
+        gladtex_str = ' --gladtex '
+    else:
+        gladtex_str = ''
+    append_str = ''
+    # appends
+    for a in appends:
+        append_str = append_str + ' -A ' + str(a)
+    # metadata
+    # FIXME: rename entrydate into date in template
+    metadata['date'] = datestr
+    metadata['entrydate'] = datestr
+    metadata_str = ''
+    for m in metadata:
+        if str(metadata[m]) != '':
+            metadata_str = metadata_str + \
+                ' --metadata ' + str(m) + '="' + str(metadata[m]) + '"'
+    if summarize:
+        command = 'head -n ' + str(summary_length) + ' ' + str(src) \
+            + ' | pandoc -s -f markdown -t html --template=' + str(tpath) \
+            + gladtex_str + append_str + metadata_str \
+            + ' -o '+ str(dest) 
+    else:
+        command = 'pandoc -s -f markdown -t html --template=' + str(tpath) \
+            + gladtex_str + append_str + metadata_str \
+            + ' -o '+ str(dest) + ' ' + str(src)
+    run_shell_command(command)
     
+
 # ---
 # YAML
 # ---
@@ -331,7 +370,7 @@ def item_root (item: Path) -> str:
 # - item: relative path to item
 # - context: relative path to page that will contain the link to item 
 def item_url (item: Path, context: Path) -> str:
-    if item == None:
+    if ((item == None) or (item == '')):
         return('')
     else:
         item = item.with_suffix('.html')
@@ -345,14 +384,16 @@ def get_template(name: Path):
         error('Template %s not found' % template)
     return template
 
+# FIXME: this no longer returns a full path, but just the name of the
+# tempalte file; probably nonsensical now
 # Return the full path for a template, throw error if it does not exist
 # - name: template file name to be found in the template directory
 # - default: default template file to be used if name does not exist
 def get_template_or_default(name: Path, default: Path):
     template = templates / name        
     if not template.exists():
-        return get_template(default)
-    return template
+        return default
+    return name
 
 # ---
 # OTHER FUNCTIONS
@@ -691,46 +732,26 @@ def prev_post(item):
 # Make the html item from the md or sst source specified by item, merging
 # in any comments, and using item_template as the template
 # return: list of changed svg files
-def make_item_merge_comments(item,commentcount,comments,item_template):
+def make_item_merge_comments(item,commentcount,comments,template):
+    dest = dest_path_of(item)
     # create destination folder if it doesnt exist yet
     os.makedirs(dest_folder_of(item), exist_ok=True)
     # blog-post path for reply links: strip the source prefix in front
     # and the index.md at the end; add comment.
     reply_path = str(item.parent) + '/comment.'
-    # create metadata for next and prev links when relevant
-    extra_metadata_str = ''
-    next = next_post(item)
-    if next != '':
-        extra_metadata_str = ' --metadata next="' + item_url(next,item) + '"'
-    prev = prev_post(item)
-    if prev != '':
-        extra_metadata_str = extra_metadata_str + \
-            ' --metadata prev="' + item_url(prev,item) + '"'
-    # add normalised date metadata for posts (archives and tag/category indices
-    # do  not have this, but are treated as posts for the time being)
-    if item in post_metadata:
-        date = post_metadata[item][0]
-        extra_metadata_str = extra_metadata_str + \
-          ' --metadata date="' + date.strftime(page_date_format_str) + '"'
-    # add commentcount to metadata if not zero
+    # build the metadata dictionary
+    metadata = { 'reply' : reply_path
+               , 'root' : str(item_root(item))
+               , 'next' : item_url(next_post(item),item)
+               , 'prev' : item_url(prev_post(item),item) }
     if commentcount > 0:
-        extra_metadata_str = extra_metadata_str + \
-            ' --metadata commentcount=' + str(commentcount)
-    # build the command string
-    src = src_path_of(item)
-    dest = dest_path_of(item)
-    if use_gladtex:
-        gladtex_str = ' --gladtex '
+       metadata['commentcount'] = str(commentcount)
+    if item in post_metadata:
+       date = post_metadata[item][0]
+       datestr = date.strftime(page_date_format_str)
     else:
-        gladtex_str = '' 
-    command = 'pandoc ' + gladtex_str + '-s -f markdown -t html --template=' + \
-        str(item_template) + \
-        ' -A '+ comments + \
-        ' --metadata reply=' + reply_path + \
-        ' --metadata root=' + str(item_root(item)) + \
-        extra_metadata_str + \
-        ' -o '+ str(dest) + ' ' + str(src)
-    run_shell_command(command)
+       datestr = ''
+    pandoc(item,dest,False,template,[ comments ],metadata,datestr)
     # process any equations in the output
     changed_svgs = process_equations(dest)
     return(changed_svgs)
@@ -772,23 +793,20 @@ def make_comments(item,tmpdir):
     log(2,'Processing comments')
     commentfiles = commentfiles_for(item)
     commentcount = 0
-    comment_template = get_template('ssst-comment.html')
     # first convert all .mdc files in src_root to .html files in tmpdir
     for c in commentfiles:
+        # strip of src/ prefix
+        rel_c = item_relpath(c)
         commentcount += 1
         # filename to store html converted comment in (in tmpdir)
         outf = tmpdir + '/' + str(c.name)[:-3] + 'html'
         # blog-post path and comment depth indicator for reply links
         # strip the source prefix in front and mdc from the back
-        reply_path = str(item_relpath(c))
-        reply_path = reply_path[:-3]
+        reply_path = str(rel_c)[:-3]
         log(3,'Making comment HTML ' + outf)
-        command = 'pandoc -f markdown'+ \
-            ' --metadata title=None'  + \
-            ' --metadata reply=' + reply_path + \
-            ' --template=' + str(comment_template) + \
-            ' -o ' + outf + ' ' + str(c)
-        run_shell_command(command)
+        metadata = { 'reply' : reply_path
+                   , 'title' : None }
+        pandoc(rel_c,outf,False,'ssst-comment.html',[],metadata,'')
     # now recursively fold in comments created in tmpdir
     comments = fold_comments(tmpdir + '/comment')
     log(5,comments)
@@ -1111,8 +1129,8 @@ def post_template(post,default):
     if post in post_metadata:
         template = post_metadata[post][2]
         if template != '':
-            return get_template(template)
-    return get_template(default)
+            return template
+    return default
 
 # Return the template to use to process page: default if not found
 def page_template(page,default):
@@ -1233,7 +1251,7 @@ def substitute_localpath(matchobj) -> str:
 
 
 # Summarise a post and write the summary to a file. Summary is generated using
-# pandoc with teh specfied template. The length of
+# pandoc with the specfied template. The length of
 # the summary is determined by 'summary_length' (-z option). Fixes any links to
 # media in the directory containing the post) by replacing them with their full
 # path from the root of the destination tree (where the home page is where this
@@ -1251,18 +1269,9 @@ def summarize_post( post: Path, container: Path, date_format: str \
     # get string representation of date
     date = post_metadata[post][0]
     datestr = date.strftime(date_format)
-    # create the URL linking to the post to be summarised
-    post_url = item_url(post,container)
-    post_path = src_path_of(post)                    
-    template_path = get_template(template)
-    # set the pandoc command string
-    command = 'head -n ' + str(summary_length) + ' ' + str(post_path) + \
-        ' | pandoc -s -f markdown --template=' + str(template_path) + \
-        ' --metadata entrydate="' + datestr + '"' + \
-        ' --metadata root="' + str(item_root(container)) + '"' + \
-        ' --metadata path="' + post_url + '"' + \
-        ' -o '+ str(fname)
-    run_shell_command(command)
+    metadata = { 'path' : item_url(post,container)
+               , 'root' : str(item_root(container)) }
+    pandoc(post,fname,True,template,[],metadata,datestr)
     # fix any local links in the output (that point to local media in the
     # directory containing the post) by replacing them with their full path
     # from the root of the destination tree (where the home page is where this
@@ -1279,7 +1288,7 @@ def summarize_post( post: Path, container: Path, date_format: str \
     with open(fname,'w') as f:
         f.write(processed_html)
 
-# Make a summary of some posts
+# Make a summary page of some posts
 # - posts: list of posts to summarise
 # - date_format_str: format string to use to format dates in summaries
 # - sub_template: template to use to generate one summary
@@ -1293,7 +1302,7 @@ def summarize_posts( posts: list, date_format_str: str \
     # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         # string keeping track of which temporary files to include later
-        pandoc_append_str = ''
+        appends = []
         i = 0
         # creat a summary for the count most recent posts 
         for post in posts:
@@ -1306,32 +1315,23 @@ def summarize_posts( posts: list, date_format_str: str \
                           , date_format_str \
                           , sub_template, summary_name)
             # and add this to the files to append when making the summary page
-            pandoc_append_str = pandoc_append_str + ' -A ' + summary_name
+            appends.append(summary_name)
         # Create the main summary, including the summarized entries.    
         # The metadata in src will determine the title and subtitle
-        template_path = get_template(template)
-        src = src_path_of(src_name)
-        if not src.exists():
-          error('Summarize page input %s does not exist.' % src)
         dest = dest_path_of(dest_name)
         dest_tmp = dest.with_suffix('.tmp')
-        # create feed folder if it doesnt exist yet
+        # create destination folder if it doesnt exist yet
         os.makedirs(dest.parent, exist_ok=True)
         # get the current date and time and set the timezone; only used by RSS
-        now = datetime.datetime.today().astimezone(ZoneInfo('UTC'))
         # RSS expects dates to be formatted like: Wed, 27 Nov 2013 15:17:32 GMT
+        now = datetime.datetime.today().astimezone(ZoneInfo('UTC'))
         datestr = now.strftime('%a, %d %b %Y %H:%M:%S %z')
-        # set the pandoc command string to create the summaries html, merging
+        # execute pandoc to create the summaries html, merging
         # in the entry summaries generated earlier
         # FIXME: assumes summaries are stored in file at root of the tree
-        command = 'pandoc -s -f markdown -t html --template=' + \
-            str(template_path) + \
-            pandoc_append_str + \
-            ' --metadata root=' + str(item_root(Path('index.html'))) + \
-            ' --metadata date="' + datestr + '"' + \
-            ' --metadata first=' + str(item_url(chain,Path('index.html'))) + \
-            ' -o '+ str(dest_tmp) + ' ' + str(src)
-        run_shell_command(command)
+        metadata = { 'first' : str(item_url(chain,Path('index.html')))
+                   , 'root' : str(item_root(src_name)) }
+        pandoc(src_name,dest_tmp,False,template,appends,metadata,datestr)
         # replace file containing the home page only if its contents changed
         changed = replace_when_changed(dest,dest_tmp)    
         return(changed)
@@ -1378,7 +1378,7 @@ def make_rss_feed():
 
 
 # ---
-# REPORT CHANGES / CREATE UPLOAD SCRIPT
+# REPORT CHANGES AND CREATE UPLOAD SCRIPT
 # ---
 
 # report all files in the list in the log
@@ -1390,24 +1390,24 @@ def report(l: list, m: str):
         for p in l:
             log(1,str(p))
 
-# Report any changed and deleted destination files in the log
-def report_changes(changed: list, deletions: list):
-    report(changed,'changed in destination')
-    report(deletions,'deleted in destination')    
-
-# write the command to f, replacing the
+# for each path in l, write the command to f, replacing the
 # modifiers {path} and {file} in command with the
-# parent folder and the filename of the p    
-def write_script_command ( p:Path, command: str, f):
-    f.write(command.format(
-        path = p.parent,
-        file = p.name
-    ))
-    f.write('\n')
+# parent folder and the filename of the path    
+def write_script_commands ( l: list, command: str, f):
+    for p in l:
+        f.write(command.format(
+            path = p.parent,
+            file = p.name
+        ))
+        f.write('\n')
     
-# Create upload script that uploads all changed files in the destination
-def create_uploadscript (changed: list, deletions: list):
-    # create uploadscritp (if requested); check for commands
+# Report changes and create uplaod script that uploads all changed
+# files in the destination, and deletes all files no longer needed
+def process_changes (changes: list, deletions: list):
+    # report changes
+    report(changes,'changed in destination')
+    report(deletions,'deleted in destination')    
+    # create uploadscript (if requested); check for commands
     if (uploadscript != ''):
         if (uploadcommand == ''):
             error('No upload command string specified')
@@ -1416,10 +1416,8 @@ def create_uploadscript (changed: list, deletions: list):
         log(0,'Creating upload script')
         # now create the upload script
         with open(uploadscript,'w') as f:
-            for p in changed:
-                write_script_command(p,uploadcommand,f)
-            for p in deletions:
-                write_script_command(p,deletecommand,f)
+            write_script_commands(changes,uploadcommand,f)
+            write_script_commands(deletions,deletecommand,f)
 
 
 # ---
@@ -1513,7 +1511,7 @@ prune_auxiliary_files(generated)
 
 # make all html files whose sources have changed (this includes the .sst files
 # just generated), and store the list of changed items
-changed = make_items()
+changes = make_items()
 
 # Prune any old items that have been generated earlier but for which a source
 # no longer exist, and store the list of deleted items
@@ -1522,18 +1520,16 @@ deletions = prune_html_files()
 # create the home page containing a summary of the most recent posts
 # (mark changed if changed)
 if make_home():
-    changed.append(Path('index.html'))
+    changes.append(Path('index.html'))
     
 # create the rss feed; the rss feed always changes (because it containt the
 # current date)
 make_rss_feed()
-changed.append(Path('feed/index.html'))
+changes.append(Path('feed/index.html'))
 
-# report all changed files
-report_changes(changed,deletions)
+# report all changed files and creat upload script
+process_changes(changes,deletions)
 
-# create the upload script to upload all chaned files
-create_uploadscript(changed,deletions)
         
 # close the logfile if necessary
 if logfile != None:
