@@ -753,8 +753,9 @@ def make_item_merge_comments(item,commentcount,comments,template):
        datestr = ''
     pandoc(item, dest, item, False, template, [ comments ], metadata, datestr)
     # process any equations in the output
+    # FICME: check return rewlative  paths
     changed_svgs = process_equations(dest)
-    changed_svgs.append(dest)
+    changed_svgs.append(dest.relative_to(dest_root))
     return(changed_svgs)
     
 # ---
@@ -1184,6 +1185,7 @@ def make_item(item: Path) -> list:
         # in tmpdir
         changed = make_item_merge_comments(item,commentcount, \
                             tmpdir + '/comments.html',template)
+    # FIXME : return relative paths
     changed = changed + copy_media(item)
     return(changed)
 
@@ -1406,6 +1408,7 @@ def write_script_commands ( l: list, command: str, f):
     
 # Report changes and create uplaod script that uploads all changed
 # files in the destination, and deletes all files no longer needed
+# FIXME: use relative paths!!!
 def process_changes (changes: list, deletions: list):
     # report changes
     report(changes,'changed in destination')
