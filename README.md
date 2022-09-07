@@ -1,6 +1,6 @@
 # SSST
 
-A simple static site tool to maintain websites based on markdown and pandoc
+A simple static site tool (based on markdown and pandoc) to maintain self-hosted websites, including a self-hosted discussions feature (based on email).
 
 # Description
 
@@ -14,7 +14,7 @@ The resulting website is completely static: no PERL or PHP or whatever is requir
 
 SSST does not unnecessarily touch generated output files, ensuring that when mirroring the generated HTML files to the webserver (through rsync or FTP mirroring options), only files whose content have actually changed have fresh timestamps and will be considered for upload.
 
-Even though the website is static, SSST also allows users to comment on posts through mail when they click on automatically generated `mailto` links embedded in posts and comments. These links ensure that the path to the post or comment replied to is automatically included in the subject field. This allows you to quickly insert the comment at the right place after moderation.
+Even though the website is static, SSST also allows users to comment on posts through mail when they click on automatically generated `mailto` links embedded in posts and comments. These links ensure that the path to the post or comment replied to is automatically included in the subject field. This allows you to quickly insert the comment at the right place after moderation. And makes even the comments/discussion part of the site completely self-hosted. This is an advantage compared to other self-hosted static website generators like [Hugo](https://gohugo.io).
 
 SSST also processes LaTeX equations in a post, replacing them with SVG images containing the rendered equation in the output HTML. This uses `pdflatex` and `pdf2svg`. If an equation occurs on a single page more than once, only on image is generated and used for every occurrence. (This does not work across multiple pages containing the same equation.)
 

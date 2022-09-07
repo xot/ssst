@@ -4,7 +4,7 @@
 #
 # A simple static site tool to maintain websites based on markdown and pandoc
 #
-# Author: Jaap-henk Hoepman (jhh@xs4all.nl)
+# Author: Jaap-henk Hoepman (info@xot.nl)
 
 import argparse, sys, os, re, tempfile, subprocess, shutil, datetime, yaml, filecmp, stat
 from pathlib import Path
@@ -753,7 +753,6 @@ def make_item_merge_comments(item,commentcount,comments,template):
        datestr = ''
     pandoc(item, dest, item, False, template, [ comments ], metadata, datestr)
     # process any equations in the output
-    # FICME: check return rewlative  paths
     changed_svgs = process_equations(dest)
     changed_svgs.append(dest.relative_to(dest_root))
     return(changed_svgs)
@@ -1106,7 +1105,7 @@ def worklist ():
 
 # Copy all media associated with an item, keeping their metadata.
 # - item: path to item in the source tree
-# return: mediafiles changed
+# return: mediafiles changed (using relative paths)
 def copy_media(item: Path) -> list:
     log(2,'Copying mediafiles')
     dest_folder = dest_folder_of(item)
@@ -1185,7 +1184,6 @@ def make_item(item: Path) -> list:
         # in tmpdir
         changed = make_item_merge_comments(item,commentcount, \
                             tmpdir + '/comments.html',template)
-    # FIXME : return relative paths
     changed = changed + copy_media(item)
     return(changed)
 
@@ -1215,6 +1213,7 @@ def prune_auxiliary_files (generated_files: list):
 
 # Prune any old items that have been generated earlier but for which the source
 # no longer exist
+# return: list of deleted destination files (relative to the dest_root)
 def prune_html_files():
     # determine all .html files that exist, and schedule them for deletion
     # (unless the process below finds a source for them)
@@ -1230,6 +1229,7 @@ def prune_html_files():
         if ((md_src not in src_files) and (sst_src not in src_files)):
             log(3,"Pruning destination file " + str(dest))
             dest.unlink()
+            # record deleted files as relative paths)
             deleted.append(dest.relative_to(dest_root))
     return(deleted)
 
@@ -1296,28 +1296,28 @@ def summarize_post( post: Path, container: Path, date_format: str \
 
 # Make a summary page of some posts
 # - posts: list of posts to summarise
+# - container: path to page that will contain this summary (used to fix urls)
 # - date_format_str: format string to use to format dates in summaries
 # - sub_template: template to use to generate one summary
 # - template: template to generate the overall summaries page
 # - chain: first post after posts summarised
 # - src: src path (of driver .md file to structure summaries page)
 # - dest: destination path to write the summaries page to (as html)
-def summarize_posts( posts: list, date_format_str: str \
+def summarize_posts( posts: list, container: Path, date_format_str: str \
                    , sub_template:str, template: str \
                    , chain: Path, src_name: str, dest_name: str ):
     # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
-        # string keeping track of which temporary files to include later
+        # keep track of which temporary files to include later
         appends = []
         i = 0
-        # creat a summary for the count most recent posts 
+        # creat a summary for each of the posts 
         for post in posts:
             # create a temporary html file name summarizing this entry
             i = i + 1
             summary_name = tmpdir + '/rss_feed.' + str(i) + '.html'
             # create the html summary for this entry
-            # FIXME: assumes summaries are stored in file at root of the tree
-            summarize_post( post, Path('index.html') \
+            summarize_post( post, container \
                           , date_format_str \
                           , sub_template, summary_name)
             # and add this to the files to append when making the summary page
@@ -1333,9 +1333,8 @@ def summarize_posts( posts: list, date_format_str: str \
         datestr = now.strftime(rss_date_format_str)
         # execute pandoc to create the summaries html, merging
         # in the entry summaries generated earlier
-        # FIXME: assumes summaries are stored in file at root of the tree
-        metadata = { 'first' : str(item_url(chain,Path('index.html'))) }
         src = Path(src_name)
+        metadata = { 'first' : str(item_url(chain,src)) }
         pandoc(src, dest_tmp, src, False, template, appends, metadata, datestr)
         # replace file containing the home page only if its contents changed
         changed = replace_when_changed(dest,dest_tmp)    
@@ -1358,6 +1357,7 @@ def make_home() -> bool:
     else:
         chain = None ;
     result = summarize_posts( all_posts[0:5] \
+                            , Path('index.html') \
                             , page_date_format_str \
                             , 'ssst-summary-entry.html' \
                             , 'ssst-homepage.html' \
@@ -1371,7 +1371,11 @@ def make_home() -> bool:
 # Make the RSS feed
 def make_rss_feed():
     log(0,'Making RSS feed.')
+    # The 'container' is actually the root index file as links in rss feeds
+    # always must be absolute paths with the actual hosting root in them; the
+    # tempalte file shoudld deal with this)
     result = summarize_posts( all_posts[0:10] \
+                            , Path('index.html') \
                             , rss_date_format_str \
                             , 'ssst-rss-entry.html' \
                             , 'ssst-rss.html' \
@@ -1408,7 +1412,6 @@ def write_script_commands ( l: list, command: str, f):
     
 # Report changes and create uplaod script that uploads all changed
 # files in the destination, and deletes all files no longer needed
-# FIXME: use relative paths!!!
 def process_changes (changes: list, deletions: list):
     # report changes
     report(changes,'changed in destination')
