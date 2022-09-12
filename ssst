@@ -490,8 +490,10 @@ def process_post_metadata(post: Path):
         if type(tags) is str:
             tags = [ tags ]
         for tag in tags:
-            # captilize without changing caps of other letters
-            tag = tag[:1].capitalize() + tag[1:]
+            # captilize first letter if the rest of the tag is lower case
+            # (so iOS stays iOS, but normal terms like identity become Identity)
+            if tag[1:].lower() == tag[1:]:
+                tag = tag[:1].capitalize() + tag[1:]
             if tag not in posts_with_tag:
                 # check if tag is not clashing with existing tag
                 normalised_tag = tag.lower()
@@ -872,9 +874,9 @@ def generate_tag_files () -> list:
         firstchar = ''
         for tag in sorted(list(posts_with_tag), key=str.lower):
             # output a header to the tags file for each alphabetical change
-            if firstchar != tag[0]:
-                firstchar = tag[0]
-                tagsf.write('\n\n## ' + firstchar.upper() + '\n\n') 
+            if firstchar != tag[0].upper():
+                firstchar = tag[0].upper()
+                tagsf.write('\n\n## ' + firstchar + '\n\n') 
             tag_pathname = tag_pathname_of(tag)
             tagsf.write( '- [' + tag + '](' \
                        + item_url(tag_pathname,tags_name) + ')\n')

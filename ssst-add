@@ -145,6 +145,7 @@ def check_known_categories(src_root,categories):
     if type(categories) is str:
         categories = [ categories ]
     cats = []
+    # TODO: careful with capitalisations of categories
     for f in Path(src_root / 'category').glob('*'):
         cats.append(f.name)
     log(2,'Checking known categories ' + str(cats))
@@ -159,6 +160,7 @@ def check_known_tags(src_root,keywords):
     if type(keywords) is str:
         keywords = [ keywords ]
     tags = []
+    # TODO: careful with capitalisations of categories; also file tree unreliable
     for f in Path(src_root / 'tag').glob('*'):
         tags.append(f.name)
     log(2,'Checking known tags ' + str(tags))    
