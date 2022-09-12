@@ -150,22 +150,22 @@ def check_known_categories(src_root,categories):
         cats.append(f.name)
     log(2,'Checking known categories ' + str(cats))
     for c in categories:
-        if c not in cats:
+        if c.lower() not in cats:
             interactive_warning('Unknown category ' + c)
 
 
 # Check a list of known tags (determined by inspecting the src-tree)
 def check_known_tags(src_root,keywords):
-    # careful: categories may be a single string
+    # careful: taks/keywords may be a single string
     if type(keywords) is str:
         keywords = [ keywords ]
     tags = []
-    # TODO: careful with capitalisations of categories; also file tree unreliable
+    # TODO: careful with capitalisations of tags; also file tree unreliable
     for f in Path(src_root / 'tag').glob('*'):
         tags.append(f.name)
     log(2,'Checking known tags ' + str(tags))    
     for k in keywords:
-        if k not in tags:
+        if k.lower() not in tags:
             interactive_warning('Unknown tag ' + k)
 
 
