@@ -451,11 +451,12 @@ def is_older(dest,src: Path):
 # PROCESS POSTS
 # ---
 
-# List of normalised tags seen, to detect different capitalisations of
+# Dictionary of normalised tags seen (containing all paths to posts containing
+# the normalised tag), to detect different capitalisations of
 # tags (like iOS and Ios) that are considered different but would
 # be written to the same external tag file if the filesystem
 # is case-insensitive; one overwriting the other!!!
-normalised_tags = []
+normalised_tags = {}
 
 # Process post metadata and store it in post_metadata[].
 # Determine the categories and the tags assiociated with a post 
@@ -498,10 +499,11 @@ def process_post_metadata(post: Path):
                 # check if tag is not clashing with existing tag
                 normalised_tag = tag.lower()
                 if normalised_tag in normalised_tags:
-                    warning('Different capitalisation of ' + normalised_tag + \
-                            ' encountered in ' + str(post) + ".")
+                    normalised_tags[normalised_tag].append(post_relpath)
+                    warning(f'Different capitalisation of { normalised_tag } encountered in { normalised_tags[normalised_tag] }.')
                 else:
-                    normalised_tags.append(normalised_tag)     
+                    normalised_tags[normalised_tag] = []
+                    normalised_tags[normalised_tag].append(post_relpath)
                 posts_with_tag[tag] = []
             posts_with_tag[tag].append(post_relpath)
     if 'title' in yaml:
