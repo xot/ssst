@@ -1,185 +1,182 @@
 #!/usr/local/bin/python3
 #
-# SSST
+# SSST (version 2)
 #
 # A simple static site tool to maintain websites based on markdown and pandoc
 #
 # Author: Jaap-henk Hoepman (info@xot.nl)
+
+
+# Note:
+# - path: full path
+# - name: basename of file
+
+# ---
+# IMPORTS
+# ---
 
 import argparse, sys, os, re, tempfile, subprocess, shutil, datetime, yaml, filecmp, stat
 from pathlib import Path
 from io import StringIO
 from zoneinfo import ZoneInfo
 
-# ---
-# DelayedTextfile
-#
-# Create a textfile, whose contents is only actually written to external
-# storage when closing the file and the new contents are different from
-# the old contents (or when the file does not exist yet)
-# ---
-
-class DelayedTextfile(StringIO):
-
-    # create a Delayedtextfile for external file fname,
-    # to be written on file close
-    def __init__(self,fname):
-        super().__init__()
-        self.path = Path(fname)
-
-    # return true if the file was actually written, false otherwise    
-    def close(self):
-        newcontents = self.getvalue()
-        if self.path.exists():
-            with open(self.path,'r') as f:
-                oldcontents = f.read()
-                if oldcontents == newcontents:
-                    log(5,'File not changed ' + str(self.path))
-                    return False
-        # create parent directory; necessary if eg date in post
-        # doesn't correspond with path, so archive file will be
-        # written in an not-yet-existing path
-        os.makedirs(self.path.parent, exist_ok=True)
-        with open(self.path,'w') as f:
-            f.write(newcontents)
-            log(5,'File changed ' + str(self.path))
-            return True
-
-    # Allow with DelayedTextfile(name) as f: constructions
-    # where file is automatically closed when with statement ends
-    def __exit__(self, type, value, tb):
-        self.close()
 
 # ---
-# CONSTANTS / PARAMETERS
+# OPTIONS
 # ---
 
 # All items processed by SSST are *relative* paths to posts or pages, relative
-# to the src_root and dest_root prefixes specified on the commandline
+# to the SRC_ROOT and DST_ROOT prefixes specified on the commandline
 # and 'declared' as global variables here
 
 # Path to the root of the source files tree
-src_root = Path('./src')
+SRC_ROOT = Path('./src')
+
+# Path to the root of the auxiliary files tree
+AUX_ROOT = Path('./aux')
 
 # Path to the root of the destination files tree
-dest_root = Path('./public')
+DST_ROOT = Path('./public')
 
 # Root where the site is hosted
 # (relative adressing, making the whole site relocatable, is the default)
-hosting_root = ''
+HOSTING_ROOT = ''
 
 # Path to directory with templates
-templates = Path('./templates')
-
-# Verbosity
-loglevel = -1
-
-# Force remaking all files
-force = False 
-
-# Overwrite files even when contents are unchanged
-overwrite = False 
-
-# Use pandoc --gladtex to process LaTeX equations
-use_gladtex = False
+TEMPLATES_FOLDER = Path('./templates')
 
 # Abort after warning
-pedantic = False 
+PEDANTIC = False 
+
+# Verbosity
+LOGLEVEL = -1
+
+# Force remaking all files
+FORCE = False 
+
+# Overwrite files even when contents are unchanged
+OVERWRITE = False 
+
+# Use pandoc --gladtex to process LaTeX equations
+USE_GLADTEX = False
 
 # Do not process simple LaTeX equations (pass them through in italics)
-keep_simple_eqs = False
+KEEP_SIMPLE_EQS = False
 
 # Lenght of summaries (including YAML header)
-summary_length = 20
+SUMMARY_LENGTH = 20
 
 # logfile name
-logfile = None 
+LOGNAME = None 
 
 # upload script file name
-uploadscript = None 
+UPLOADSCRIPT = None 
 
 # upload command for upload script, can containt the following modifiers
 # {path} : replaced with the destination path of the changed item (without the
 #    destination prefix specified by -d
 # {src} : full path name of the changed file that needs to be uploaded
-uploadcommand = ''
+UPLOADCOMMAND = ''
 
 # delete command for upload script, can containt the following modifiers
 # {path} : replaced with the destination path of the changed item (without the
 #    destination prefix specified by -d
 # {src} : full path name of the changed file that needs to be uploaded
-deletecommand = ''
+DELETECOMMAND = ''
+
+def parse_commandline ():
+    """Parse the commandline and set all options
+    """
+    global SRC_ROOT, AUX_ROOT, DST_ROOT, HOSTING_ROOT, TEMPLATES_FOLDER, LOGLEVEL
+    global FORCE, OVERWRITE, USE_GLADTEX, PEDANTIC, KEEP_SIMPLE_EQS, LOGNAME
+    global UPLOADSCRIPT, UPLOADCOMMAND, DELETECOMMAND, SUMMARY_LENGTH
+    # Set up arguments parsing
+    parser = argparse.ArgumentParser(description='SSST. A simple static site tool to maintain websites based on markdown and pandoc.')
+    parser.add_argument('-s', '--source', default=SRC_ROOT,
+                        help='Path to the root of the source files tree')
+    parser.add_argument('-a', '--aux', default=AUX_ROOT,
+                        help='Path to the root of the auxiliary files tree')
+    parser.add_argument('-d', '--destination', default=DST_ROOT,
+                        help='Path to the root of the destination files tree')
+    parser.add_argument('-r', '--root', default=HOSTING_ROOT,
+                        help='Root where the site is hosted. If omitted, the root is found using relative addressing, making the site relocatable')
+    parser.add_argument('-t', '--templates', default=TEMPLATES_FOLDER,
+                        help='Path to directory with templates')
+    parser.add_argument('-v', '--verbosity', default=LOGLEVEL,
+                        help='Verbosity (-1, the default, is silent)')
+    parser.add_argument('-l', '--logfile', default='ssst.log',
+                        help='Name of file to store all log messages in')
+    parser.add_argument('-u', '--uploadscript', default='',
+                        help='Name of script file to store upload commands in')
+    parser.add_argument('-c', '--uploadcommand', default='',
+                        help='Upload command string (with modifiers)')
+    parser.add_argument('-x', '--deletecommand', default='',
+                        help='Delete command string (with modifiers)')
+    parser.add_argument('-f', '--force', default = False, action='store_true',
+                        help='(Re)make everything')
+    parser.add_argument('-g', '--gladtex', default = False, action='store_true',
+                        help='Use pandoc --gladtex to process LaTeX equations.')
+    parser.add_argument('-k', '--keepsimple', default = False, action='store_true',
+                        help='Do not process simple LaTex equations')
+    parser.add_argument('-p', '--pedantic', default = False, action='store_true',
+                        help='Abort after warning')
+    parser.add_argument('-z', '--summarylength', default=SUMMARY_LENGTH,
+                        help='Number of lines in post (including YAML header) to include in a summary')
+    parser.add_argument('-o', '--overwrite', default = False, action='store_true',
+                        help='Overwrite files even when contents unchanged')
+    args = parser.parse_args()
+    # Apply arguments and check validity
+    SRC_ROOT = Path(args.source)
+    if not SRC_ROOT.exists():
+        error(f'Source path { SRC_ROOT } does not exist.')
+    AUX_ROOT = Path(args.aux)
+    if not AUX_ROOT.exists():
+        warning(f'Auxiliary path { AUX_ROOT } does not exist. Creating it.')
+        os.makedirs(AUX_ROOT, exist_ok=False)
+    DST_ROOT = Path(args.destination)
+    if not DST_ROOT.exists():
+        warning(f'Destination path { DST_ROOT } does not exist. Creating it.')
+        os.makedirs(DST_ROOT, exist_ok=False)
+    HOSTING_ROOT = args.root
+    TEMPLATES_FOLDER = Path(args.templates)
+    if not TEMPLATES_FOLDER.exists():
+        error(f'Templates directory { TEMPLATES_FOLDER } does not exist.')
+    LOGLEVEL = int(args.verbosity)
+    FORCE = args.force
+    OVERWRITE = args.overwrite
+    USE_GLADTEX = args.gladtex
+    PEDANTIC = args.pedantic
+    KEEP_SIMPLE_EQS = args.keepsimple
+    LOGNAME = args.logfile
+    UPLOADSCRIPT = args.uploadscript
+    UPLOADCOMMAND = args.uploadcommand
+    DELETECOMMAND = args.deletecommand
+    SUMMARY_LENGTH = int(args.summarylength)
 
 # ---
-# OTHER GLOBAL VARIABLES
+# CONSTANTS
 # ---
 
-# Dictionary of all tags, listing for each tag the relative pathnames for the posts with those tags
-# (filled by process_posts -> process_post_metadata) 
-posts_with_tag = {}
+# Date format string constants
+RSS_DATE_FORMAT_STR = '%a, %d %b %Y %H:%M:%S +0000'
+PAGE_DATE_FORMAT_STR = '%B %-d, %Y'
 
-# Dictionary of all categories, listing for each category the relative pathnames for the posts with those categories
-# (filled by process_posts -> process_post_metadata) 
-posts_with_cat = {}
+# slack for determining whether file is older than another (in ms (?))
+GRACE_PERIOD = 10
 
-# Dictionary of all posts (indexed using their relative pathnames), containing
-# the metadata as tuples (date,title,template)
-# (filled by process_posts -> process_post_metadata) 
-post_metadata = {}
-
-# List of all relative pathnames for posts, sorted by date (most recent first)
-# (with the help of process_posts)
-all_posts = []
-
-# ---
-# ERRORS / LOGGING
-# ---
-
-# Outpur the error message, and log it when required. Then exit
-# - msg: the error message
-def error(msg: str):
-    m = 'ssst: error: %s\n' % str(msg)
-    sys.stderr.write(m)
-    if logfile != None:
-        logfile.write(m)
-    sys.exit (1)
-
-# Output the warning message, and write it to the log file if it was specified.
-# Exit when pedantic processing was specified.
-# - msg: the warning message
-def warning(msg: str):
-    m = 'ssst: warning: %s\n' % str(msg)
-    sys.stderr.write(m)
-    if logfile != None:
-        logfile.write(m)
-    if pedantic:
-        sys.exit (1)
-
-# Output a log message when its level is lower than the specifief verbosity
-# on the command line. Always write the message to the log file if it was
-# specified 
-# - level: the log-level for this message
-# - msg: the log message
-def log (level: int, msg: str):
-    if level == 0:
-        m = '# '
-    else:
-        m = '-' * level + ' '
-    m = m + str(msg) + '\n'
-    if (level <= loglevel):
-        sys.stdout.write(m)
-    if logfile != None:
-        logfile.write(m)
-
+# Suffix of media files that will automatically be copied from the source
+# folder to the destination folder
+MEDIA_TYPES = ['jpg','gif','pdf','png']
 
 # ---
 # SHELL
 # ---
 
-# Run a shell command. Abort and print the error message when it fails
-# - command
-def run_shell_command(command: str):
-    log(4,'Running shell command ' + command)
+def run_shell_command ( command: str ):
+    """Run a shell command. Abort and print the error message when it fails.
+       - command
+    """
+    log(4,f'Running shell command { command }.')
     result = subprocess.run(command,text=True,shell=True,capture_output=True)
     if result.returncode != 0:
         error(result.stderr)
@@ -188,227 +185,239 @@ def run_shell_command(command: str):
 # PANDOC PROCESSING
 # ---
 
-# Process a markdown source file to create the corresponding html destination
-#
-# - src : item to process (relative to src)
-# - dest_path : full path of destination file
-# - container : item in which processed file is included (src if not)
-#   (used to determine root and  path metadata)
-# - summarize: if true, include only summary_length lines of the input
-# - template: name of template to use
-# - appends: other html files pandoc should append (-A)
-# - metadata: dictionary of metadata items to include in the pandoc commandline
-#  (--metadata); only items with a value != '' are included
-# - datestr: string representing date, to be included as metadata as well
-def pandoc ( src: Path, dest_path: str, container: Path, summarize: bool \
-           , template: str, appends: list, metadata, datestr: str):
-    src_path = src_path_of(src)
-    if not src_path.exists():
-        error('Page input %s does not exist.' % src)
-    tpath = get_template(template)
-    if use_gladtex:
-        gladtex_str = ' --gladtex '
-    else:
-        gladtex_str = ''
-    # create append string
-    append_str = ''
-    for a in appends:
-        append_str = append_str + ' -A ' + str(a)
-    # create metadata string; include date metadata
-    metadata['date'] = datestr
-    metadata['root'] = str(item_root(container))
-    metadata['path'] = str(item_url(src,container))    
-    metadata_str = ''
+def pandoc ( src, dst, container: Path, summarize: bool \
+           , template: str, appends: list, metadata: dict ):
+    """Process a markdown source file to create the corresponding html
+       destination. Output may be included in a different final html file with
+       path container. Any references to local resources (./) are replaced
+       with the appropriate link to the folder with the actual media.
+       (This assumes that every source is always processed once locally, and
+        its associated media is copied to its local destination folder.)
+
+       - src : full path to item to process (either in src or in aux,
+           could also be a comment file)
+       - dst : full path of destination file
+       - container : relative path of final html file this file may be included
+           in (used to determine root and path metadata)
+           relative path of src if standalone
+       - summarize: if true, include only summary_length lines of the input
+       - template: name of template to use
+       - appends: other html files pandoc should append (-A)
+       - metadata: dictionary of metadata items to include in the pandoc commandline
+        (--metadata)
+    """
+    assert src.exists()
+    # construct pandoc options (template, gladtex, appends, metadata
+    options = f' --template={ get_template(template) }'
+    if USE_GLADTEX:
+        options += ' --gladtex '
+    for append in appends:
+        options += f' -A { append }'
+    # collect metadata
+    metadata['root'] = path_root(container) # root for this html file
+    src_rel = None
+    if src.is_relative_to(SRC_ROOT):
+        src_rel = src.relative_to(SRC_ROOT)
+    elif src.is_relative_to(AUX_ROOT):
+        src_rel = src.relative_to(AUX_ROOT)
+    # input to pandoc (markdown) always comes from either src or aux
+    assert src_rel != None
+    metadata['fullpath'] = src_rel.with_suffix('.html')
+    # link to full html version of this file, relative to container
+    path = path_url(src_rel,container)
+    metadata['url'] = path        
+    # append metadata string
     for m in metadata:
-        if str(metadata[m]) != '':
-            metadata_str = metadata_str + \
-                ' --metadata ' + str(m) + '="' + str(metadata[m]) + '"'
+        options += f' --metadata { m }="{ metadata[m] }"'
+    # first replace all occurances of ./ with the current base directory
+    # (replacement should not contain &)
+    base = str(Path(path).parent)
+    command = f'cat { src } | sed "s&\\./&{ base }/&g"'
+    # when summarizing, use head to get the first SUMMARY_LENGTH lines
     if summarize:
-        command = 'head -n ' + str(summary_length) + ' ' + str(src_path) \
-            + ' | pandoc -s -f markdown -t html --template=' + str(tpath) \
-            + gladtex_str + append_str + metadata_str \
-            + ' -o '+ str(dest_path) 
-    else:
-        command = 'pandoc -s -f markdown -t html --template=' + str(tpath) \
-            + gladtex_str + append_str + metadata_str \
-            + ' -o '+ str(dest_path) + ' ' + str(src_path)
+        command += f' | head -n { SUMMARY_LENGTH }'
+    command += f' | pandoc -s -f markdown -t html { options } -o { dst }'        
     run_shell_command(command)
-    
 
 # ---
-# YAML
+# PATH utility functions
 # ---
 
-# Return the dictionary of entries found in the YAML block at the start of
-# a file
-# - src: full path to the file
-def get_yaml_dict(src: Path):
-    try:
-        with open(src,'r') as f:
-            yamls = yaml.load_all(f,Loader=yaml.SafeLoader)
-            for y in yamls:
-                return y
-    except:
-        warning('Invalid YAML block in ' + str(src))
-        return {}
+def aux_path_of ( path: Path ) -> Path :
+    """Return the full auxiliary pathname for a relative path.
+    """
+    return AUX_ROOT / path
 
-# ---
-# FOLDER FUNCTIONS
-# ---
-
-# Return the full source folder containing item
-# - item: relative path to the item
-def src_folder_of(item: Path) -> Path:
-    return src_root / item.parent # full source folder of item
-
-# Return the full source folder pathname pointing to item
-# - item: relative path to the item
-def src_path_of(item: Path) -> Path:
-    return src_root / item
-
-# return full file path for a possible source (with suffix specified) for
-# the destination specified
-# - dest: destination to find the source for
-# - suffix: source suffix
-def possible_src_of(dest: Path, suffix: str) -> Path:
-    item = dest.relative_to(dest_root)
-    src = src_root / item
-    return(src.with_suffix(suffix))
-
-# Return the relative path (wrt src_root) for the full path leading to an item
-# -item: full path in source tree to item
-def item_relpath(item: Path) -> Path:
-    return item.relative_to(src_root)
-
-# Return the full destination folder to store the result for item
-# - item: relative path to the item
-def dest_folder_of(item: Path) -> Path:
-    return dest_root / item.parent # full source folder of item
-
-# Return the full destination path for the html file to be generated
-# for the item
-# - item: relative path to the item
-def dest_path_of (item: Path) -> Path:
-    dest = dest_root / item
-    return dest.with_suffix('.html')
-
-# Return an iterator that iterates over all files in the tree rooted at
-# the specified root with the specified suffix
-# - root: root of the tree to scan
-# - suffix: suffix of files to return, including "."
-def all_files_with_suffix(root: Path, suffix: str):
-    return root.glob('**/*' + suffix)
-
-# Return an iterator that iterates over all files in the tree rooted at
-# src_root with the specified suffix
-# - suffix: suffix of files to return, including "."
-def src_files_with_suffix(suffix: str):
-    return all_files_with_suffix(src_root,suffix)
-
-
-# Return an iterator that iterates over all files in the tree rooted at
-# dest_root with the specified suffix
-# - suffix: suffix of files to return, including "."
-def dest_files_with_suffix(suffix: str):
-    return all_files_with_suffix(dest_root,suffix)
-
-# Determine list of Paths containing the comments (empty if none) for the item
-# I.e. all files matching <src_root> / <parent_folder> / *.mdc
-# - item: relative path to the item
-def commentfiles_for (item: Path):
-    return (src_root / item.parent).glob('*.mdc')
-
-# Suffix of media files that will automatically be copied from the source
-# folder to the destination folder
-media_types = ['jpg','gif','pdf','png']
-
-# Determine list of Paths containing the mediafiles (empty if none) for the item
-# I.e. all files matching <src_root> / <parent_folder> / <mediatypes>
-# - item: relative path to the item
-def mediafiles_for (item: Path):
-    res = []
-    for tp in media_types:
-        res = res + list((src_root / item.parent).glob('*.' + tp))
-    return res
-
-# Return the relative pathname for the intermediate file containing all
-# posts belonging to a category
-# - cat: the category
-def cat_pathname_of ( cat: str ) -> Path:
-    return Path('category/' + cat + '/index.sst')
-
-# Return all full pathnames for the all intermediate category information files
-# that are stored on disk
-def existing_cat_pathnames ():
-    return (src_root / Path('category')).glob('*/index.sst')
-
-
-# Return the relative pathname for the intermediate file containing all
-# posts belonging to a tag
-# - tag: the category
-def tag_pathname_of ( tag: str ) -> Path:
-    return Path('tag/' + tag.lower() + '/index.sst')
-
-
-# Return all full pathnames for the all intermediate tag information files
-# that are stored on disk
-def existing_tag_pathnames ():
-    return (src_root / Path('tag')).glob('*/index.sst')
-
-# Return path pointing to the root for the current item on the hosting site.
-# This is either a relative path back to the root from the path containing the
-# item, or simply hosting_root if set to non-empty on the command line 
-# - item: relative path to item
-def item_root (item: Path) -> str: 
-    if hosting_root != '':
-        return hosting_root
-    else:
-        item = str(item)
-        log(5,'Computing root for ' + item)
-        res = ''
-        for c in item:
-            if c == '/':
-                res = res + '../'
-        # remove trailing backslash (does nothing when res == '')
-        res = res[:-1]
-        if res == '':
-            res = '.'
-        log(5,'Computed root ' + res)    
-        return res
-
-# Determine the link pointing to the item on the hosting site
-# relative to context, i.e.
-# the generated link works if is included in the page with path context
-# - item: relative path to item
-# - context: relative path to page that will contain the link to item 
-def item_url (item: Path, context: Path) -> str:
-    if ((item == None) or (item == '')):
-        return('')
-    else:
-        item = item.with_suffix('.html')
-        return str(item_root(context) / item)
-
-# Return the full path for a template, throw error if it does not exist
-# - name: template file name to be found in the template directory  
-def get_template(name: Path):
-    template = templates / name        
+def get_template ( name: Path ) -> Path :
+    """Return the full path for a template, throw error if it does not exist
+       - name: template file name to be found in the template directory
+       - result: full path for the template; Path
+    """
+    template = TEMPLATES_FOLDER / name        
     if not template.exists():
-        error('Template %s not found' % template)
+        error(f'Template { template } not found.')
     return template
 
-# ---
-# OTHER FUNCTIONS
-# ---
+def path_relative_root ( relpath: Path ) -> str:
+    """Return the relative path back to the root from the
+       path containing the item.
+       - item: relative path to item; Path
+       - result: root (without a trailing backslash); str
+    """
+    # count the number of directory components
+    hops = len(relpath.parts) - 1
+    # chain as many .. together separated with / (avoid trailing /)
+    path = '/'.join( hops * ['..'])
+    if path == '':
+        return "."
+    else:
+        return path
+    
+def path_root ( relpath: Path ) -> str:
+    """Return the root for the current item on the hosting site.
+       This is either a relative path back to the root from the
+       path containing the item, or simply HOSTING_ROOT if set
+       - item: relative path to item; Path
+       - result: root (without a trailing backslash); str
+    """
+    if HOSTING_ROOT != '':
+        return HOSTING_ROOT
+    else:
+        return path_relative_root(relpath)
+    
+def path_url ( relpath, context: Path ) -> str:
+    """Obtain link pointing to a page (relpath) in the hosting site, when included
+       in another page (context).
+       Returns a relative link if HOSTING_ROOT is not set.
+       - relpath: relative path to item (either in AUX_ROOT or in SRC_ROOT); Path
+       - context: relative path to page in which link is included; Path
+       - result: url; str
+    """
+    path = relpath.with_suffix('.html')
+    if HOSTING_ROOT != '':
+        return f'{ HOSTING_ROOT }/{ path }' 
+    else:
+        # get the common prefix of both parents
+        prefix = os.path.commonpath((relpath.parent,context.parent))
+        # remove the common prefix
+        rel_context = context.relative_to(prefix)
+        rel_path = path.relative_to(prefix)
+        # now compute the relative root of context and append the path
+        root = path_relative_root(rel_context)
+        # TODO for 'compatibility' with ssst v1
+        if root == '.':
+            return rel_path
+        else:
+            return f'{ root }/{ rel_path }'
 
-# Replace the contents of a file with new contents, but only change the file
-# and its metadata when the new contents are different from the current
-# contents.
-# - current: file whose contents must be updated 
-# - update: file containing new content
-# return: whether file changed
+# --- interacting wiht the filesystem
+
+def is_older(dest,src: Path) -> bool:
+    """ Check whether dest is older than src
+        - dest: ; Path
+        - src: ; Path
+        - result: ; bool
+    """
+    dtime = os.stat(dest)[stat.ST_MTIME]
+    stime = os.stat(src)[stat.ST_MTIME]
+    return dtime < (stime - GRACE_PERIOD)
+
+def all_files_with_suffix( root: Path, suffix: str ):
+    """Return an iterator that iterates over all files in the tree rooted at
+       the specified root with the specified suffix
+       - root: root of the tree to scan
+       - suffix: suffix of files to return (must start with ".")
+       - result: iterator
+    """
+    return root.glob('**/*' + suffix)
+    
+def delete_empty_folders ( root: Path ) -> list:
+    """Delete all empty folders rooted in root, and report all that were deleted.
+    """
+    fpaths = list(all_files_with_suffix(root,''))
+    # sort according to decreasing length
+    # (to ensure folders that only contain empty folders are also deleted)
+    fpaths.sort(key=lambda path: -len(str(path)))
+    deleted = []
+    for fpath in fpaths:
+        if fpath.is_dir():
+            if len(list(fpath.iterdir())) == 0:
+                log(4,f'Deleting empty directory { fpath }.')
+                fpath.rmdir() # delete
+                deleted.append(fpath)
+    return deleted
+
+def is_obsolete_dst_file (f: Path, prefixes: set ) -> bool:
+    """Test whether f is obsolete, is not covered by prefixes that have
+       a source.
+
+       If f is a file, then obsolete if
+       - f.parent not in prefixes
+       - f.parent / KEEP doesn't exists
+       - f.parent does not equal the RSS feed path
+
+       If f is a directory, then obsolete if
+       - f not in prefixes
+       - f / KEEP doesn't exist
+       - f  does not equal the RSS feed path
+    """
+    if not f.is_dir():
+        log(1,f'Testing file { f }')
+        f = f.parent
+    else:
+        log(1,f'Testing folder { f }')
+    result  = (f not in prefixes) and (not (f / "KEEP").exists()) and \
+                 (f !=  DST_ROOT / RSS_FEED_PATH.parent)
+    log(1,f'Result: { result } ')
+    return result
+
+def delete_obsolete_dst_files ( src_items, aux_items : list ) -> list:
+    """Delete all files in dst that no longer have a corresponding source,
+       and return a list of all deleted files
+       - src_items: list of items in src; [Item]
+       - aux_items: list of items in aux; [Item]
+       - result: list of deleted files; [path]
+    """
+    log(0,f'Deleting all obsolete files from {DST_ROOT}')
+    # sanity check (to prevent deleting say the user home directory)
+    canary =  DST_ROOT / 'ssst.canary'
+    if canary.exists():
+        # add all prefixes of all src_items and aux_items
+        prefixes = set()
+        for item in src_items + aux_items:
+            prefix = item.dst_path().parent
+            while prefix != Path('.'):
+                prefixes.add(prefix)
+                prefix = prefix.parent
+        # now find all obsolete files in dst usng this  list of prefixes
+        dst_files = all_files_with_suffix(DST_ROOT,'')
+        to_delete = [ f for f in dst_files if is_obsolete_dst_file(f,prefixes) ]
+        log(1,f'Deleting { len(to_delete) } obsolete files')
+        # sort according to decreasing length
+        # (to ensure folders that only contain empty folders are also deleted)
+        to_delete.sort(key=lambda path: -len(str(path)))
+        for fpath in to_delete:
+            log(2,f'Deleting { fpath }')
+            if fpath.is_dir():
+                fpath.rmdir() # delete
+            else:
+                fpath.unlink() # delete
+        return to_delete
+    else:
+        log(1,f'Not deleting anything because { canary } does not exist.')
+        log(1,f'Create it manually in { DST_ROOT }.')
+        return []
+    
 def replace_when_changed (current: Path, update: Path) -> bool:
+    """ Replace the contents of a file with new contents, but only change the file
+        and its metadata when the new contents are different from the current
+        contents (or if OVERWRITE set).
+        - current: file whose contents must be updated 
+        - update: file containing new content
+        - result: whether file changed
+    """
     if (not current.exists()) \
-       or overwrite \
+       or OVERWRITE \
        or (not filecmp.cmp(current,update,shallow=False)): 
         log(5,'File changed ' + str(current))
         update.rename(current)
@@ -418,152 +427,511 @@ def replace_when_changed (current: Path, update: Path) -> bool:
         update.unlink() # remove file
         return False
 
-# Parse a date if it is a string, return unchanced otherwise.
-# (Only parses wordpress generated dates like 'Sun, 19 Apr 2020 08:42:00 +0000'
-# that the YAML parser fails to parse)
-# - s: string to parse if it isn't a date
+def filter_file ( inpath, outpath : Path, filter):
+    """Filter file using filter function and write output (to possibly
+       different file)
+       - inpath: path to input
+       - outpath: path to output
+       - filter: filter function; str -> str
+    """
+    with open(inpath,'r') as inf:
+        s = inf.read()
+    s = filter(s)
+    with open(outpath,'w') as outf:
+        outf.write(s)
+""
+    
+# ---
+# ERRORS / LOGGING
+# ---
+
+# Outpur the error message, and log it when required. Then exit
+# - msg: the error message
+def error( msg: str ):
+    m = f'ssst: error: { msg }\n'
+    sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
+    sys.exit (1)
+
+# Output the warning message, and write it to the log file if it was specified.
+# Exit when pedantic processing was specified.
+# - msg: the warning message
+def warning ( msg: str ):
+    m = f'ssst: warning: { msg }\n'
+    sys.stderr.write(m)
+    if logfile != None:
+        logfile.write(m)
+    if PEDANTIC:
+        sys.exit (1)
+
+# Output a log message when its level is lower than the specifief verbosity
+# on the command line. Always write the message to the log file if it was
+# specified 
+# - level: the log-level for this message
+# - msg: the log message
+def log ( level: int, msg: str ):
+    if level == 0:
+        m = f'# { msg }\n'
+    else:
+        m = f"{ '-' * level } { msg }\n"
+    if (level <= LOGLEVEL):
+        sys.stdout.write(m)
+    if logfile != None:
+        logfile.write(m)
+
+# ===
+# DelayedTextfile
+# ===
+
+# state of path as recorded in a snapshot
+CHANGED = 0
+UNCHANGED = 1
+UNTOUCHED = 2
+
+class DelayedTextfile ( StringIO ):
+    """Create a textfile, whose contents is only actually written to external
+       storage when closing the file and the new contents are different from
+       the old contents (or when the file does not exist yet).
+    """
+    
+    def __init__(self, fname, snapshot):
+        """Create a Delayedtextfile for external file fname; use snapshot
+           to record state changes.
+        """
+        super().__init__()
+        self._path = Path(fname)
+        self._snapshot = snapshot
+
+    def close(self):
+        newcontents = self.getvalue()
+        if self._path.exists():
+            with open(self._path,'r') as f:
+                oldcontents = f.read()
+                if (oldcontents == newcontents) and not OVERWRITE:
+                    log(5,f'File not changed { self._path }.')
+                    self._snapshot[self._path] = UNCHANGED
+                    return
+        # create parent directory; necessary if eg date in post
+        # doesn't correspond with path, so archive file will be
+        # written in an not-yet-existing path
+        os.makedirs(self._path.parent, exist_ok=True)
+        with open(self._path,'w') as f:
+            f.write(newcontents)
+            log(5,f'File changed { str(self._path) }.')
+            self._snapshot[self._path] = CHANGED                    
+
+    # Allow with DelayedTextfile(name) as f: constructions
+    # where file is automatically closed when with statement ends
+    # (NOTE SEPT 2022: APPARENTLY NO LONGER NEEDED)
+    def __exit__(self, type, value, tb):
+        pass 
+        #self.close()
+
+# ---
+# YAML
+# ---
+
+def get_yaml_dict ( src: Path ) -> dict:
+    """Return the dictionary of entries found in the first YAML block at
+       the start of a file
+       - src: full path to the file
+    """
+    try:
+        with open(src,'r') as f:
+            yamls = yaml.load_all(f,Loader=yaml.SafeLoader)
+            for y in yamls:
+                return y
+        warning(f'Empty YAML block in {src}.')
+        return {}
+    except:
+        warning(f'Invalid YAML block in {src}.')
+        return {}
+
+def ensure_list ( yaml_dict: dict, key: str ) -> list:
+    """Return the value of key in yaml_dict always as a list (even if it
+       is a single string).
+    """
+    if key in yaml_dict:
+        value = yaml_dict[key]
+        if type(value) is str:
+            return [ value ]
+        else:
+            return value
+    else:
+        return []
+
 def parse_date (s) -> datetime.date:
+    """Parse a date if it is a string, return unchanced otherwise.
+       (Only parses wordpress generated dates like
+       'Sun, 19 Apr 2020 08:42:00 +0000'
+       that the YAML parser fails to parse)
+       - s: string to parse if it isn't a date
+    """
     if type(s) is str:
         time = datetime.datetime.strptime(s,'%a, %d %b %Y %H:%M:%S %z')
         return time.date()
     else:
         return s
-
-# Date format string constants
-rss_date_format_str = '%a, %d %b %Y %H:%M:%S +0000'
-page_date_format_str = '%B %-d, %Y'
     
-# Minimum amount of milliseconds difference between destination and source 
-# modification time before an item will be considered older (and hence a
-# workitem)
-
-grace_period = 10
-
-# Check whether dest is older than src
-# - dest
-# - src
-def is_older(dest,src: Path):
-    dtime = os.stat(dest)[stat.ST_MTIME]
-    stime = os.stat(src)[stat.ST_MTIME]
-    return dtime < (stime - grace_period)
-
 # ---
-# PROCESS POSTS
+# Item
 # ---
 
-# Dictionary of normalised tags seen (containing all paths to posts containing
-# the normalised tag), to detect different capitalisations of
-# tags (like iOS and Ios) that are considered different but would
-# be written to the same external tag file if the filesystem
-# is case-insensitive; one overwriting the other!!!
-normalised_tags = {}
+def capitalise ( s: str ) -> str:
+    """Captilize first letter, but unly if the rest of the string is lower case
+       (so iOS stays iOS, but normal terms like identity become Identity)
+       - s: str
+       - result: capitalied string
+    """
+    if (s[1:].lower() == s[1:]):
+        return s[0].upper() + s[1:]
+    else:
+        return s
 
-# Process post metadata and store it in post_metadata[].
-# Determine the categories and the tags assiociated with a post 
-# and add its  pathname to the necessary categories and tag dictionaries
-# - post : full pathname to the post to process
-def process_post_metadata(post: Path):
-    global posts_with_tag
-    global posts_with_cat
-    global post_metadata
-    log(2,'Processing categories and tags for ' + str(post))
-    yaml = get_yaml_dict(post)
-    post_relpath = item_relpath(post)
-    if 'categories' in yaml:
-        cats = yaml['categories']
-        log(3,'Categories: ' + str(cats))
-        # careful: categories may be a single string
-        if type(cats) is str:
-            cats = [ cats ]
-        for cat in cats:
-            # make sure categoreis are stored in all lowercase
-            # (e.g. ios and iOS would otherwise be considered different 
-            # but written to the same external file if the filesystem
-            # is case-insensitive; one overwriting the other!!!
-            cat = cat.lower()
-            if cat not in posts_with_cat:
-                posts_with_cat[cat] = []
-            posts_with_cat[cat].append(post_relpath)
-    if 'keywords' in yaml:
-        tags = yaml['keywords']
-        log(3,'Tags: ' + str(tags))
-        # careful: tags may be a single string
-        if type(tags) is str:
-            tags = [ tags ]
+# Item types
+POST = 0
+PAGE = 1
+AUX = 2
+    
+class Item:
+    """Class representing an item (post, page, ..)
+    """
+
+    # Pointer to the list of all posts (maintained in sorted order, most recent
+    # last; used to maintain prev/next pointes 
+    head = None
+
+    def _insert(self):
+        """Insert yourself in the linked list of posts (maintained using
+           self.prev and self.next, using Item.head as the start of this list,
+           and keeping the lost ordered by increasing date
+        """
+        if (self.type != POST) or (self.date == None):
+            self.prev = None
+            self.next = None
+        else:
+            prev = None
+            cur = Item.head
+            while cur and cur.date and cur.date < self.date:
+                prev = cur
+                cur = cur.next
+            # found spot; insert yourself
+            self.prev = prev
+            self.next = cur
+            if cur:
+                cur.prev = self
+            if prev:
+                prev.next = self
+            else:
+                self.next = Item.head
+                Item.head = self
+                
+    def __init__(self, itempath: Path):
+        """Load item from markdown file and set values of its fields to metadata
+           in the file.
+           - itempath: full path to markdown file
+        """
+        log(2,f'Processing item {itempath}.')
+        # set relative path
+        if itempath.is_relative_to(SRC_ROOT):
+            self.relative_path = itempath.relative_to(SRC_ROOT)
+            # If it is a POST, this will be adjusted at the end of init
+            self.type = PAGE 
+        elif itempath.is_relative_to(AUX_ROOT):
+            self.relative_path = itempath.relative_to(AUX_ROOT)
+            self.type = AUX
+        else:
+            error(f'Unexpected item path { itempath }.') 
+        yaml_dict = get_yaml_dict(itempath)
+        self.categories = ensure_list(yaml_dict,'categories')
+        # Captilize first letter of a tag, but unly if the rest of
+        # the tag is lower case
+        self.tags = list( map( capitalise, ensure_list(yaml_dict,'keywords') ) )
+        if 'title' in yaml_dict:
+            self.title = yaml_dict['title']
+        else:
+            error(f'Item { itempath } is missing a title.')
+        if 'date' in yaml_dict: 
+            self.date = parse_date(yaml_dict['date'])
+        else:
+            self.date = None
+        if 'template' in yaml_dict:
+            self.template = yaml_dict['template']
+        else:
+            self.template = ''
+        # pages and aux files do not have categories and tags
+        if (len(self.categories) != 0) or (len(self.tags) !=0) :
+            self.type = POST
+            if len(self.categories) == 0:
+                warning(f'Post {itempath} is missing a category.')
+            if len(self.tags) == 0:
+                warning(f'Post {itempath} is missing a keyword.')
+            if self.date == None:
+                error(f'Post {itempath} is missing a date.')
+            # TODO warn if post path contains data, unequal to date in post
+        self._insert()
+
+    def yearmonth (self):
+        """Return the date of an item disregarding the day
+        """
+        return datetime.date(self.date.year, self.date.month, 1)
+        
+    def src_path(self):
+        """Return the full src path of item (either in aux or in src)
+        """
+        if self.type == AUX:
+            return AUX_ROOT / self.relative_path
+        else:
+            return SRC_ROOT / self.relative_path
+
+    def dst_path(self):
+        """Return the destination path (with html suffix) where
+           output for item will be generated in
+        """
+        return (DST_ROOT / self.relative_path).with_suffix('.html')
+
+    def commentfiles(self):
+        """Return a list of all commentfiles for the item.
+        """
+        return list(self.src_path().parent.glob('comment*.mdc'))
+
+    def mediafiles (self):
+        """Return all media files for item, i.e. those in its path that
+           match MEDIA_TYPES
+        """
+        res = []
+        for tp in MEDIA_TYPES:
+            res = res + list(self.src_path().parent.glob('*.' + tp))
+        return res
+
+    def dst_mediafiles (self):
+        """Return all media files for item, i.e. those in its path that
+           match MEDIA_TYPES, in its destination
+        """
+        res = []
+        for tp in MEDIA_TYPES:
+            res = res + list(self.dst_path().parent.glob('*.' + tp))
+        return res
+
+    def dst_eqfiles (self):
+        """Return all equation files for item, i.e. those in its path that
+           match *.svg, in its destination
+        """
+        return list(self.dst_path().parent.glob('*.svg')) 
+    
+def scan_src_items () -> list:
+    """Scan all pages and posts in src, load their metadata, and return as
+       a list of items.
+       result: [item]
+    """
+    log(0,'Scanning posts and pages.')
+    return [ Item(fpath) for fpath in all_files_with_suffix(SRC_ROOT,'.md') ]
+
+# ---
+# GENERATE AUXILIARY FILES (ARCHIVES, TAGS, CATEGORIES
+# ---
+
+# --- sort keys
+
+def item_sort_increasing_date_key ( item ):
+    return item.date
+
+def item_sort_decreasing_date_key ( item ):
+    d = item.date
+    return (-d.year,-d.month,-d.day)
+
+def archive_sort_key(date):
+    return (-date.year,date.month,0)
+
+# --- dump
+
+def dump_posts ( posts: list, aux_relpath: Path, subtitle, title, snapshot: dict ):
+    """Create a markdown document into aux_relpath, with title as title and
+       label as subtitle) containing a list of links to all posts in posts
+       (in the order given).
+       - posts: list of posts to dump; [item]
+       - aux_relpath: relative path (in the AUX folder) of file to dump into; Path
+       - subtitle: subtitle to use; str
+       - title: title to use; str
+       - postfix: string to append after all posts (for next/prev links); str
+       - snapshot: keep track of changes; dict
+    """
+    aux_path = aux_path_of(aux_relpath)
+    # make sure directory for output exists
+    os.makedirs(aux_path.parent, exist_ok=True)
+    log(3,f'Dumping to { aux_path }.')
+    with DelayedTextfile(aux_path, snapshot) as outf:
+        outf.write('---\n')
+        outf.write(f"title: '{ title }'\n")
+        outf.write(f"subtitle: '{ subtitle }'\n")        
+        outf.write('---\n')        
+        for post in posts:
+            datestr = post.date.strftime(PAGE_DATE_FORMAT_STR)
+            url = path_url(post.relative_path, aux_relpath) 
+            outf.write(f'- [{ post.title }]({ url }) ({ datestr })\n')
+
+# --- generate
+
+def generate_tag_files ( src_items: list, snapshot: dict ):
+    """Generate tag files containing all posts for a particular tag
+       in ./tag/<tag>/index.sst in aux. Also create a list of all
+       known tags in ./tags.sst. These are markdown files that
+       will subsequently be converted to html through the make routine.
+
+       Unchanged files keep modification times for make routine.
+       Keep track of changes through snapshot.
+
+       src_items: [item]
+       snapshot: {fpath:state}
+    """
+    log(0,'Generating tag files.')
+    # items can have more than one tag; convert set to list to prevent duplicates
+    tags = list({ tag for item in src_items for tag in item.tags })
+    tags.sort(key=str.lower)
+    tags_path = aux_path_of('tags.sst')
+    with DelayedTextfile(tags_path, snapshot) as tagsf:        
+        tagsf.write('---\n')
+        tagsf.write("title: 'Tags'\n")
+        tagsf.write('---\n\n')
+        # initialise firstchar so first header is always written to output
+        current_firstchar = 'Z'
         for tag in tags:
-            # captilize first letter if the rest of the tag is lower case
-            # (so iOS stays iOS, but normal terms like identity become Identity)
-            if tag[1:].lower() == tag[1:]:
-                tag = tag[:1].capitalize() + tag[1:]
-            if tag not in posts_with_tag:
-                # check if tag is not clashing with existing tag
-                normalised_tag = tag.lower()
-                if normalised_tag in normalised_tags:
-                    normalised_tags[normalised_tag].append(post_relpath)
-                    warning(f'Different capitalisation of { normalised_tag } encountered in { normalised_tags[normalised_tag] }.')
-                else:
-                    normalised_tags[normalised_tag] = []
-                    normalised_tags[normalised_tag].append(post_relpath)
-                posts_with_tag[tag] = []
-            posts_with_tag[tag].append(post_relpath)
-    if 'title' in yaml:
-        title = yaml['title']
-    else:
-        title = ''
-        warning('Title expected but not found in ' + str(post) + \
-                '. Using empty title.')
-    if 'date' in yaml: 
-        tmp = yaml['date']
-        date = parse_date(tmp)
-        dateprefix = date.strftime('%Y/%m/%d')
-        poststr = str(item_relpath(post))
-        if not poststr.startswith(dateprefix):
-            warning('Date ' + dateprefix + ' in ' + str(post) + \
-                    ' does not correspond with its path.')
-    else:
-        error('Date expected but not found in ' + str(post))
-    if 'template' in yaml:
-        template = yaml['template']
-    else:
-        template = ''
-    post_metadata[post_relpath] = (date,title,template)
+            # output a header to the tags file for each alphabetical change
+            if current_firstchar != tag[0].upper():
+                current_firstchar = tag[0].upper()
+                tagsf.write(f'\n## { current_firstchar }\n\n') 
+            # write a link to the current tag page in the main tagsfile 
+            tag_relpath = Path(f'tag/{ tag.lower() }/index.sst')
+            url = path_url(tag_relpath,Path('.'))
+            tagsf.write(f'- [{ tag }]({ url })\n')
+            # write all entries for the current tag to its page
+            tag_posts = [ item for item in src_items if tag in item.tags ]
+            tag_posts.sort(key=item_sort_decreasing_date_key)
+            dump_posts(tag_posts, tag_relpath, 'Tag', tag, snapshot)
 
-# Regular expression matching a path for a post (i.e. one that starts with a
-# four digit year)
-# FIXME: this is incomplete
-post_re = re.compile('[0-9][0-9][0-9][0-9].*')
+def generate_category_files ( src_items: list, snapshot: dict ):
+    """Generate category files containing all posts for a particular category
+       in ./category/<category>/index.sst in aux. Also create a list of all
+       known categories in ./categories.sst. These are markdown files that
+       will subsequently be converted to html through the make routine.
+
+       Unchanged files keep modification times for make routine.
+       Keep track of changes through snapshot.
     
-# Determine whether the item is a post (or a page)
-# - item: relative path to item to determine type of
-def is_post(item: Path) -> bool:
-    return (post_re.match(str(item)) != None) and (item.suffix == '.md')
+       src_items: [item]
+       snapshot: {fpath:state}
+    """
+    log(0,'Generating category files.')
+    # items can have more than one category; convert set to list to prevent duplicates
+    cats = list({ cat for item in src_items for cat in item.categories })
+    cats.sort()
+    cats_path = aux_path_of('categories.sst')
+    with DelayedTextfile(cats_path, snapshot) as catsf:        
+        catsf.write('---\n')
+        catsf.write("title: 'Categories'\n")
+        catsf.write('---\n\n')
+        for cat in cats:
+            # write a link to the current category page in the main categories file 
+            cat_relpath = Path(f'category/{ cat.lower() }/index.sst')
+            url = path_url(cat_relpath,Path('.'))
+            catsf.write( f'- [{ cat }]({ url })\n')
+            # write all entries for the current category to its page
+            cat_posts = [ item for item in src_items if cat in item.categories ]
+            cat_posts.sort(key=item_sort_decreasing_date_key)
+            dump_posts(cat_posts, cat_relpath, 'Category', cat, snapshot)
 
+def generate_archive_files ( src_items: list, snapshot: dict ):
+    """Generate archive files containing all posts for a particular month in 
+       ./yyyy/mm/index.sst in aux. Also create a list of all known archives
+       in ./archives.sst. These are markdown files that will subsequently be
+       converted to html through the make routine.
 
-# Collect all metadata about all posts (like tags and categories, but also
-# title and date for all blog entries) in the source tree. This initializes
-# the following global variables:
-# posts_with_cat, posts_with_tag, post_metadata and all_posts
-def process_posts ():
-    log(0,'Processing posts.')
-    # Find all posts (they have suffix .md) and process their metadata
-    for item in src_files_with_suffix('.md'):
-        if is_post(item_relpath(item)):
-            process_post_metadata(item)
-    # sort all posts by date and store the list of relative paths in all_posts
-    for post in post_metadata:
-        all_posts.append(post)
-    # sort in decending order
-    all_posts.sort(reverse=True,key=lambda entry: post_metadata[entry][0])
+       Unchanged files keep modification times for make routine.
+       Keep track of changes through snapshot.
     
+       src_items: [item]
+       snapshot: {fpath:state}
+    """
+    log(0,'Generating archive files.')
+    # get a set of all different year,month pairs (as dates) for which a post exists
+    # and then turn it into a list, to avoid dupliactes
+    yearmonths = list({ item.yearmonth() for item in src_items if item.type == POST })
+    # sort the posts by *decreasing* year, but increasing month/day within
+    # a year; this ensures that the main archive file lists the most
+    # recent year first
+    yearmonths.sort(key=archive_sort_key)
+    archives_path = aux_path_of('archives.sst')
+    with DelayedTextfile(archives_path, snapshot) as archivesf:        
+        archivesf.write('---\n')
+        archivesf.write("title: 'Archives'\n")
+        # archivef.write("template: 'ssst-archives.html'\n")
+        archivesf.write('---\n')
+        # initialise current year so first year is always written to output
+        current_year = 0
+        for i in range(len(yearmonths)):
+            ym = yearmonths[i]
+            # output a header to the main archives file for each year change
+            if current_year != ym.year:
+                current_year = ym.year
+                archivesf.write(f'\n## { current_year }\n')
+            # write a link to the current yearmonth page in the main archives file 
+            ym_relpath = Path(ym.strftime('%Y/%m/index.sst'))
+            ym_str = ym.strftime('%B %Y')
+            ym_url = path_url(ym_relpath,Path('.'))
+            archivesf.write(f'- [{ ym_str }]({ ym_url })\n')
+            # write all entries for the current yearmonth to its page
+            # (make sure only to include posts)
+            ym_posts = [ item for item in src_items if (item.type == POST) and (ym == item.yearmonth()) ]
+            ym_posts.sort(key=item_sort_increasing_date_key)
+            # TODO add next and previous archive links to template
+            dump_posts(ym_posts, ym_relpath, 'Archive', ym_str, snapshot)
+
+def generate_aux_items ( src_items: list ) -> list:
+    """Generate all auxiliary items (archives, tags, categories) in aux from
+       the metadata in src_items (unchanged files keep modification times
+       for make); obsolete files are deleted.
+       Report all auxiliary items (including unchanged).
+       src_items: [item]
+       result: [item]
+    """
+    log(0,'Generating auxiliary data files.')
+    log(1,f'Processing { len(src_items) } in the source tree.')
+    postcount = len([item for item in src_items if item.type == POST])
+    pagecount = len([item for item in src_items if item.type == PAGE])
+    log(1,f'{ postcount } posts and { pagecount } pages.')
+    # keep track of untouched files in the aux file tree
+    # note: this snapshot also contains directories!
+    # note: DIFFERENT Path objects for the SAME path string are equal
+    # and are mapped to the same dictionary key
+    snapshot = { fpath : UNTOUCHED for fpath in all_files_with_suffix(AUX_ROOT,'sst') }
+    generate_tag_files(src_items, snapshot)
+    generate_category_files(src_items, snapshot) 
+    generate_archive_files(src_items, snapshot)
+    # delete untouched files (i.e those that were never a target in the above steps)
+    untouched = [ fpath for fpath in snapshot if snapshot[fpath] == UNTOUCHED ]
+    for fpath in untouched:
+        if not fpath.is_dir():
+            fpath.unlink() # delete
+    # now delete all empty direcotories in AUX
+    delete_empty_folders(AUX_ROOT)
+    # return all auxiliary items
+    log(0,'Scanning auxiliary files.')
+    return [ Item(fpath) for fpath in snapshot if snapshot[fpath] != UNTOUCHED ]
+
 
 # ---
 # LaTeX EQUATIONS
 # ---
 
+# some global variables for the equation processing routines
+
 # number of matches so far
 eq_match_count = 0
+
 # folder containing the currently processed file
 basefolder = ''
+
 # dictonary of processed equations, containing for each equation the
 # name of the SVG file containing its image;
 # reset for every file
@@ -572,53 +940,50 @@ equations = {}
 # list of svg file names that changed
 changed_svgs = []
 
-# Return the filename of the file to store the SVG for the i-th equation in
-def get_svg_file_name(i):
-    return 'index.' + str(i) + '.svg'
+# whether to reuse already generated equation images for the same file
+# that is currently processed
+reuse = False
 
-# Return the full pathname of the file to store the SVG for the i-th equation in
-def get_svg_path_name(i):
-    return basefolder / get_svg_file_name(i)
-
-# Turn a latex expression into an SVG graphic and write it to file.
-# The filename to use is determined by the global variable basefolder
-# (derived from the name of the file containing the equations) and
-# number of processed equations for that file
-# - latex_expr: latex expression (without surrounding $$)
-# - returns: the name of the SVG file in which the graphic is stored
-#         (relative to basename)
 def process_eq(latex_expr):
-    global eq_match_count
-    global changed_svgs
+    """Turn a latex expression into an SVG graphic and write it to file.
+       The filename to use is determined by the global variable basefolder
+       (derived from the parent of the file containing the equations) and
+       number of processed equations for that file
+       - latex_expr: latex expression (without surrounding $$)
+       - returns: the name of the SVG file in which the graphic is stored
+    """
+    global eq_match_count, changed_svgs
+    # increment match count and create corresponding SVG output name
     eq_match_count = eq_match_count + 1
-    # create the SVG output name
-    svg_file_name = get_svg_file_name(eq_match_count) 
-    svg_path_name = get_svg_path_name(eq_match_count) 
-    svg_tmp = svg_path_name.with_suffix('.tmp')
-    log(4,'Storing equation in ' + str(svg_path_name))
-    # creata a temorary direcotry to work in; will be deleted when with closes
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_tex = tmpdir + '/htsv.tex'    
-        tmp_pdf = tmpdir + '/htsv.pdf'
-        # read the latex template and store it as a string in t
-        eq_template = get_template('ssst-eq.tex')
-        with open(eq_template,'r') as f:
-            latex_template = f.read()
-        # insert latex_expr at $$ in the template
-        s = latex_template.split('$$')
-        latex_document = s[0] + '$'+ latex_expr + '$' + s[1]
-        # write the result to a tex file in the temporary directory
-        with open(tmp_tex,'w') as w:
-            w.write(latex_document)
-        # create the pdf (in the temporary directory) from the latexfile
-        run_shell_command('pdflatex -output-directory ' + \
-                             tmpdir + ' ' + tmp_tex)
-        # create the SVG from the pdf
-        run_shell_command('pdf2svg ' + tmp_pdf + ' ' + str(svg_tmp))
-        # replace destination only when real changes occured
-        if replace_when_changed(svg_path_name,svg_tmp):
-            changed_svgs.append(svg_path_name.relative_to(dest_root))
-    return svg_file_name
+    svg_file_name = f'index.{ eq_match_count }.svg'
+    svg_path_name = basefolder / svg_file_name
+    if reuse:
+        # return path to earlier generated equation image (uses the fact
+        # that files are always processed in exactly the same way, except
+        # that summaries may only process the first part of it)
+        log(4,'Reusing equation in ' + str(svg_path_name))
+        return svg_path_name
+    else:
+        log(4,'Storing equation in ' + str(svg_path_name))
+        # creata a temorary direcotry to work in; will be deleted when with closes
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_tex = tmpdir + '/htsv.tex'    
+            tmp_pdf = tmpdir + '/htsv.pdf'
+            tmp_svg = tmpdir + '/htsv.svg'
+            # read the latex template and store it as a string in t
+            eq_template = get_template('ssst-eq.tex')
+            # insert latex_expr at $$ in the template
+            filter_file(eq_template,tmp_tex \
+                       ,lambda s: s.split('$$')[0] + '$' + latex_expr + '$' + s.split('$$')[1])
+            # create the pdf (in the temporary directory) from the latexfile
+            run_shell_command(f'pdflatex -output-directory {tmpdir} {tmp_tex}')
+            # create the SVG from the pdf
+            run_shell_command(f'pdf2svg { tmp_pdf } { tmp_svg }')
+            # replace destination only when real changes occured
+            replace_when_changed(svg_path_name,Path(tmp_svg))
+            changed_svgs.append(svg_path_name)
+            # return 'local' link not the full relative path
+            return svg_file_name
 
 # Match &lt;
 lessthan_re = re.compile(r'(&lt;)')
@@ -626,24 +991,27 @@ lessthan_re = re.compile(r'(&lt;)')
 # Match &gt;
 greaterthan_re = re.compile(r'(&gt;)')
 
-# Replace any occurance of '&lt;' on the input with '<'
-# (because the --gladtex option of pandoc turns < into &lt;)
 def sanitize_eq (expr):
-    ret = lessthan_re.sub('<',expr,count=0)
-    ret = greaterthan_re.sub('>',ret,count=0)    
+    """Replace any occurance of '&lt;' on the input with '<'
+       (because the --gladtex option of pandoc turns < into &lt;)
+    """
+    tmp = lessthan_re.sub('<',expr,count=0)
+    ret = greaterthan_re.sub('>',tmp,count=0)    
     log(5,'Sanitized '+ expr + ' to ' + ret)
     return ret
 
 # Match a simple expression, that can be passed without processing
 simple_expr_re =  re.compile(r'([A-Za-z0-9])+')
 
-# Process currently matched latex equation to create an SVG for it
-# return the replacement text for the currently matched latex equation
-# (ie an <img> tag pointing the SVG file generated for it)
-# If the exact same equation was already made, immediately return the
-# <img> tag pointing to the SVG file previously made.
-# - matchobj: object found to match the equation regular expression 
 def substitute_eq (matchobj):
+    """Process currently matched latex equation to create an SVG for it
+       return the replacement text for the currently matched latex equation
+       (ie an <img> tag pointing the SVG file generated for it)
+       If the exact same equation was already made, immediately return the
+       <img> tag pointing to the SVG file previously made.
+        - matchobj: object found to match the equation regular expression
+        - result: replacement <img> tag
+    """
     if matchobj:
         # get the matched latex expression string
         match = matchobj.group(1)
@@ -651,18 +1019,16 @@ def substitute_eq (matchobj):
         latex_expr = sanitize_eq(match)
         log(4,'Processing equation ' + latex_expr)
         # do not process simple LaTex equations, when so instructed
-        if keep_simple_eqs and simple_expr_re.fullmatch(latex_expr):
+        if KEEP_SIMPLE_EQS and simple_expr_re.fullmatch(latex_expr):
             return '<em>' + latex_expr + '</em>'
         if latex_expr in equations:
             log(5,'Already made!')
-            svg_file_name = equations[latex_expr]
+            svg_path = equations[latex_expr]
         else:
-            svg_file_name = process_eq(latex_expr)
-            equations[latex_expr] = svg_file_name
-        # return the <img> tag that points to the generated SVG
-        return '<img class="latexeq"' \
-            + ' src="' + svg_file_name + '"' \
-            + ' alt="' + latex_expr + '">'
+            svg_path = process_eq(latex_expr)
+            equations[latex_expr] = svg_path
+        # return the <img> tag that points to the generated SVG in the local dir
+        return f'<img class="latexeq" src="{ svg_path }" alt="{ latex_expr }">'
     
 # Match <eq ...>LATEXEXPRESSION</eq> generated by pandoc -gladtex
 # (use .*? for non-greedy matching, to ensure the first </eq> found
@@ -675,877 +1041,490 @@ gladtex_eq_re = re.compile(r'<eq[^>]*>(.*?)</eq>',re.DOTALL)
 # will close the regulear expression)
 plain_eq_re = re.compile(r'<span class="math inline">\$(.*?)\$</span>',re.DOTALL)
 
-# Process any equations in the item (determined using the regular
-# expression eq_re)
-# - fname: full path of item to be processed (note: the parent is the folder
-#      in which any equation images are stored)
-# return: list of changed cvg files
-def process_equations (fname) -> list:
-    global eq_match_count
-    global basefolder
-    global equations
-    global changed_svgs
+def filter_equation ( s: str ) -> str:
+    """Fliter any equation in a string, matching <x>_eq_re
+    """
+    if USE_GLADTEX:
+        return gladtex_eq_re.sub(substitute_eq, s, count=0)
+    else:
+        return plain_eq_re.sub(substitute_eq, s, count=0)
+
+def process_equations ( src, eq_path: Path, snapshot: dict):
+    """Process any equations in the item.
+       - src: full path of item to be processed
+       - eq_path: relative path of folder in which earlier generated equations
+           are stored (None if they must be generated)
+       - snapshot: to keep track of changed files
+    """
+    global eq_match_count, basefolder, equations, changed_svgs, reuse
+    # 
     log(2,'Processing equations.')
     eq_match_count = 0
     equations = {}
     changed_svgs = []
-    basefolder = fname.parent
-    # open the file for reading
-    with open(fname,'r') as f:
-        # read the file as one string
-        orig_html = f.read()
-    # process and substitute each occurence of a latex equation
-    if use_gladtex:
-        processed_html = gladtex_eq_re.sub(substitute_eq, orig_html, count=0)
+    reuse = (eq_path != None) 
+    if reuse:
+        basefolder = eq_path
     else:
-        processed_html = plain_eq_re.sub(substitute_eq, orig_html, count=0)
-    # write the result back to the file
-    with open(fname,'w') as f:
-        f.write(processed_html)
-    # remove any SVG fles containing equations from previous runs
-    # FIXME: PASS DELETED STATUS
-    eq_match_count = eq_match_count + 1
-    svg_path_name = get_svg_path_name(eq_match_count) 
-    while svg_path_name.exists():
-        svg_path_name.unlink() # remove file
-        eq_match_count = eq_match_count + 1
-        svg_path_name = get_svg_path_name(eq_match_count) 
-    return changed_svgs
-
-# ---
-# MAKE ITEM
-# ---
-
-# return the path to next post (more recent) following item; '' if none
-# (this uses the fact that all_posts is sorted by date in descending order)
-def next_post(item):
-    if item in all_posts:
-        pos = all_posts.index(item)
-        if pos-1 >= 0:
-            return all_posts[pos-1]
-    return ''
-
-# return the path to previous post (less recent) following item; '' if none
-# (this uses the fact that all_posts is sorted by date in descending order)
-def prev_post(item):
-    if item in all_posts:
-        pos = all_posts.index(item)
-        if pos+1 < len(all_posts):
-            return all_posts[pos+1]
-    return ''
-
-# Make the html item from the md or sst source specified by item, merging
-# in any comments, and using item_template as the template
-# return: list of changed svg files and the destination of the item itself
-def make_item_merge_comments(item,commentcount,comments,template):
-    dest = dest_path_of(item)
-    # create destination folder if it doesnt exist yet
-    os.makedirs(dest_folder_of(item), exist_ok=True)
-    # blog-post path for reply links: strip the source prefix in front
-    # and the index.md at the end; add comment.
-    reply_path = str(item.parent) + '/comment.'
-    # build the metadata dictionary
-    metadata = { 'reply' : reply_path
-               , 'next' : item_url(next_post(item),item)
-               , 'prev' : item_url(prev_post(item),item) }
-    if commentcount > 0:
-       metadata['commentcount'] = str(commentcount)
-    if item in post_metadata:
-       date = post_metadata[item][0]
-       datestr = date.strftime(page_date_format_str)
-    else:
-       datestr = ''
-    pandoc(item, dest, item, False, template, [ comments ], metadata, datestr)
-    # process any equations in the output
-    changed_svgs = process_equations(dest)
-    changed_svgs.append(dest.relative_to(dest_root))
-    return(changed_svgs)
-    
-# ---
-# MAKE COMMENTS
-# ---
-
-# Assume all comment files have been converted to html and are stored in
-# the temporary directory. 
-# Recursively fold all coments at the current level (specified by path in
-# the temporary directory)
-# and return them as a string; try: <path>.1.html (and fold its children)
-# then  <path>.2
-def fold_comments(path):
-    log(4,'Folding ' + str(path)) 
-    folded = ''
-    i = 1
-    while True:
-        prefix = path + '.' + str(i)
-        filename = prefix + '.html'
-        if not os.path.exists(filename):
-            break
-        with open(filename,'r') as f:
-            folded = folded \
-                + '<div class="comment">\n'\
-                + f.read() \
-                + fold_comments(prefix) \
-                + '</div>\n'
-        i = i + 1
-    return folded
-    
-# Process the comments associated with the item. 
-# - first convert individual comments to html in tmpdir
-# - then fold them into one html file (keeping the hierarchical order)
-# Stores the result in tmpdir/comments.html for further processing
-# by make (this file is empty if there are no comments)
-def make_comments(item,tmpdir):
-    log(2,'Processing comments')
-    commentfiles = commentfiles_for(item)
-    commentcount = 0
-    # first convert all .mdc files in src_root to .html files in tmpdir
-    for c in commentfiles:
-        # strip of src/ prefix
-        rel_c = item_relpath(c)
-        commentcount += 1
-        # filename to store html converted comment in (in tmpdir)
-        outf = tmpdir + '/' + str(c.name)[:-3] + 'html'
-        # blog-post path and comment depth indicator for reply links
-        # strip mdc from the back
-        reply_path = str(rel_c)[:-3]
-        log(3,'Making comment HTML ' + outf)
-        metadata = { 'reply' : reply_path }
-        pandoc(rel_c, outf, rel_c, False, 'ssst-comment.html', [], metadata, '')
-    # now recursively fold in comments created in tmpdir
-    comments = fold_comments(tmpdir + '/comment')
-    log(5,comments)
-    # and store the comments in comments.html in the tmpdir
-    with open(tmpdir + '/comments.html','w') as f:
-        f.write(comments)
-    return commentcount
-
-# ---
-# GENERATE AUXILIARY FILES
-# ---
-
-# Write a link (entry_url) describing an entry (using its title and date)
-# to the output stream outf
-def dump_entry(entry,outname,outf):
-    (date,title,template) = post_metadata[entry]
-    datestr = date.strftime(page_date_format_str)
-    outf.write('- [' + title + '](' + item_url(entry,outname) + \
-               ') (' + datestr + ')\n')    
-
-# Create a markdown document into out_name (relative path)
-# (with title as title and label as subtitle)
-# containing a list of links to all posts in filelist
-# (assumed to be sorted by date)
-def dump_entries(out_name,type,label,filelist):
-    # sort the list of pathnames by date, most recent first
-    # (FIXME: using the fact that the path encodes the file date)
-    filelist.sort(reverse=True)
-    os.makedirs(src_folder_of(out_name),exist_ok=True)
-    log(3,'Dumping to ' + str(out_name))
-    out_pathname = src_path_of(out_name)
-    with DelayedTextfile(out_pathname) as outf:
-        outf.write('---\n')
-        outf.write("title: '" + label + "'\n")
-        outf.write("subtitle: '" + type + "'\n")        
-        outf.write('---\n')        
-        for entry in filelist:
-            dump_entry(entry,out_name,outf)
-
-
-# Generate all tag files in ./tag directories in the src_root (SOURCE!) tree;
-# These are markdown files (with suffix .sst) that will subsequently be
-# converted to html through the make routine
-#
-# Files whose contents would not change will not be touched; this way
-# make will ignore them as the timestamp remains unchanged
-#
-# return: the list of all generated files (including unchanged ones) 
-def generate_tag_files () -> list:
-    log(0,'Generating tag files.')
-    tags_name = 'tags.sst'
-    tags_pathname = src_path_of(tags_name)
-    # keep track of generated files
-    generated = [tags_pathname]
-    # DelayedTextfile will be written to disk when with closes
-    # (and contents really chagned)
-    with DelayedTextfile(tags_pathname) as tagsf:        
-        tagsf.write('---\n')
-        tagsf.write("title: 'Tags'\n")
-        tagsf.write('---\n\n')
-        # initialise firstchar so that the very first time a header is always
-        # written to output
-        firstchar = ''
-        for tag in sorted(list(posts_with_tag), key=str.lower):
-            # output a header to the tags file for each alphabetical change
-            if firstchar != tag[0].upper():
-                firstchar = tag[0].upper()
-                tagsf.write('\n\n## ' + firstchar + '\n\n') 
-            tag_pathname = tag_pathname_of(tag)
-            tagsf.write( '- [' + tag + '](' \
-                       + item_url(tag_pathname,tags_name) + ')\n')
-            dump_entries(tag_pathname,'Tag',tag,posts_with_tag[tag])
-            generated.append(src_path_of(tag_pathname))
-    # return the list of all generated files
-    return(generated)
-
-
-# Generate all category files in ./category directories in the
-# src_root (SOURCE!) tree;
-# These are markdown files (with suffix .sst) that will subsequently be
-# converted to html through the make routine
-#
-# Files whose contents would not change will not be touched; this way
-# make will ignore them as the timestamp remains unchanged
-#
-# return: the list of all generated files (including unchanged ones) 
-def generate_category_files () -> list:
-    log(0,'Generating category files.')
-    categories_name = 'categories.sst'
-    categories_pathname = src_path_of(categories_name)
-    # keep track of generated files
-    generated = [categories_pathname]
-    # DelayedTextfile will be written to disk when with closes
-    # (and contents really chagned)
-    with DelayedTextfile(categories_pathname) as catsf:        
-        catsf.write('---\n')
-        catsf.write("title: 'Categories'\n")
-        catsf.write('---\n\n')
-        for cat in sorted(list(posts_with_cat)):
-            cat_pathname = cat_pathname_of(cat)
-            catsf.write( '- [' + cat + '](' \
-                       + item_url(cat_pathname,categories_name) + ')\n')
-            dump_entries(cat_pathname,'Category',cat,posts_with_cat[cat])
-            generated.append( src_path_of(cat_pathname) )
-    # return the list of all generated files
-    return(generated)
-
-            
-            
-# return a sort key for an entry such that entries are sorted
-# by decreasing year, but increasing month and day
-def archive_sort_key(entry):
-    date = post_metadata[entry][0]
-    return (-date.year,date.month,date.day)
-
-# Create archive files containing all posts for a particular month in 
-# ./yyyy/mm/index.sst in the src_root (SOURCE!) tree;
-# Also create a list of all known archives in src_root/archives.sst
-# These are markdown files that will subsequently be converted to html
-# through the make routine.
-#
-# Files whose contents would not change will not be touched; this way
-# make will ignore them as the timestamp remains unchanged
-#
-# return: the list of generated files (including unchanged ones)  
-def generate_archive_files () -> list:
-    log(0,'Generating archives.')
-    last_year_archived = 0
-    # dictionary with DelayedTextFile descriptors, indexed by archivepath
-    archive_paths = {}
-    # sort the posts by *decreasing* year, but increasing month/day within
-    # a year; this ensures that the main archive file lists the most
-    # recent year first
-    archive_posts = all_posts.copy()
-    archive_posts.sort(key=archive_sort_key)
-    # create the root archive file (as a DelayedTextfile
-    archives_pathname = src_path_of('archives.sst')
-    # keep track of generated files
-    generated = [archives_pathname]
-    log(3,'Writing all archives to ' + str(archives_pathname))
-    # DelayedTextfile will be written to disk when with closes
-    # (and contents really chagned)
-    with DelayedTextfile(archives_pathname) as archivef:        
-        archivef.write('---\n')
-        archivef.write("title: 'Archives'\n")
-#        archivef.write("template: 'ssst-archives.html'\n")
-        archivef.write('---\n')
-        # process all posts to be archived and put them in the
-        # appropriate archive (determined by the month and year of publication)
-        # this creates another DelayedTextfile for every new archive
-        for post in archive_posts:
-            # construct the full and relative path for the archive this post
-            # should appear in
-            date = post_metadata[post][0]
-            archive_year = date.year
-            monthyear = date.strftime('%B %Y')
-            archive_path = Path(date.strftime('%Y/%m/index.sst'))
-            archive_src_path = src_path_of(archive_path)
-            generated.append(archive_src_path)
-            # if we are processing a new month
-            if archive_path not in archive_paths:
-                # write a header every time the year changes to the main
-                # archive file (this assumes archive_posts is sorted)
-                if last_year_archived != archive_year:
-                    last_year_archived = archive_year
-                    archivef.write('\n## ' + str(archive_year) + '\n')
-                # write a link to this new archive to the main archive file
-                archivef.write('- [' + monthyear +'](' + \
-                               item_url(archive_path,\
-                                        Path('archives.sst')) + \
-                               ')\n' )
-                # create a new delayed file for this monthly archive
-                log(3,'Creating new monthly archive ' + str(archive_path))
-                outf = DelayedTextfile(archive_src_path)
-                archive_paths[archive_path] = outf
-                # write the header for the new archive
-                outf.write('---\n')
-                outf.write("title: 'Archive " + monthyear + "'\n")        
-                outf.write('---\n')
-            # append the entry to the monthly archive
-            outf = archive_paths[archive_path]
-            dump_entry(post,archive_path,outf)
-    # get the archive paths in the correct order to dump next/prev pointers
-    archive_paths_list = list(archive_paths.keys())
-    archive_paths_list.sort()
-    # write prev/next pointers and close all archive files
-    for i,archive_path in enumerate(archive_paths_list):
-        outf = archive_paths[archive_path]
-        # write separator
-        outf.write('\n\n') 
-        # find next and previous archive and add links
-        if (i > 0):
-            prevurl = item_url(archive_paths_list[i-1],archive_path)
-            outf.write('[previous](' + prevurl + ') archive') 
-        if (i > 0) and (i < len(archive_paths_list)-1):
-            outf.write(' / ')
-        if (i < len(archive_paths_list)-1):
-            nexturl = item_url(archive_paths_list[i+1],archive_path)
-            outf.write('[next](' + nexturl + ') archive')
-        outf.write('\n\n') 
-        outf.close()
-    # return the list of all generated files
-    return(generated)
-
-
-# Generate all auxiliary files (tags, catgories, archives)
-# return: the list of generated files 
-def generate_auxiliary_files () -> list:
-    generated = generate_tag_files()
-    generated = generated + generate_category_files() 
-    generated = generated + generate_archive_files()
-    return(generated)
-            
-# ---    
-# DETERMINE WORKLIST
-# ---
-
-# Determine whether the item (given src and dest directories in the global
-# variables src_root and dest_root) should be remade: i.e. if the destination
-# does not exist, or when it is older than the source file or any of its
-# associated comments or media files (within a certain grace period)
-# - item: path to item
-# - returns: whether item is a workitem or not
-def is_workitem(item: Path) -> bool:
-    # check whether destination exists
-    dest = dest_path_of(item)
-    log(4,'Destination should be ' + str(dest))
-    if not dest.exists():
-        return True
-    log(4,'Destination exists.')
-    # check whether destination is older than source
-    src = src_path_of(item)
-    if is_older(dest,src):
-        log(4,'Destination older than source.')
-        return True
-    # check whether destination is older than any comment or mediafile
-    # in the source
-    files = list(commentfiles_for(item)) + mediafiles_for(item)
-    for file in files:
-        log(4,'Additional file found: ' + str(file))
-        if is_older(dest,file):
-            log(4,'Destination older than comment or media item in source.')
-            return True
-    return False
-
-
-# match all files with suffix in the tree rooted at src_root and return a
-# list of all files that need to be (re)made
-# - suffix: suffix of files to consider (.md or .sst)
-# - returns: a list of paths to items that need to be made
-def worklist_for (suffix: str):
-    list = []
-    # traverse all files with suffix in the subtree rooted at src
-    # (This returns a 'list' of Paths (not strings))
-    for src in src_files_with_suffix(suffix):
-        log(2,'Considering: ' + str(src))
-        # strip the src_root
-        item = item_relpath(src)
-        # add the item when -f given, or when a workitem
-        if force or is_workitem(item):
-            log(2,'Adding ' + str(src))
-            list.append(item)
-        else:
-            log(2,'Ignoring ' +  str(src))
-    return list
-
-# Determine posts, pages and generated pages that need to be (re)made
-# - returns: a list of paths to items that need to be made
-def worklist ():
-    log(0,'Determining files to process...')
-    # determine all .md files that need to be made
-    list = worklist_for('.md')
-    # remove <src_root>/index.md which is (always) made separetely
-    # through make_home() called later
-    if Path('index.md') in list:
-        list.remove(Path('index.md'))
-    extended_list = list.copy()
-    # insert any "neighbours" of posts in the worklist as well, to ensure
-    # that their next and prev links are updated if necessary
-    for item in list:
-        if is_post(item):
-            prev = prev_post(item)
-            if (prev != '') and (prev not in extended_list):
-                extended_list.append(prev)
-            next = next_post(item)
-            if (next != '') and (next not in extended_list):
-                extended_list.append(next)
-    # add all *.sst files that need to be made
-    final_list = extended_list + worklist_for('.sst')
-    log(0,str(len(final_list)) + ' files to process found.')
-    return final_list
-
-# ---
-# MAKE
-# ---
-
-# Copy all media associated with an item, keeping their metadata.
-# - item: path to item in the source tree
-# return: mediafiles changed (using relative paths)
-def copy_media(item: Path) -> list:
-    log(2,'Copying mediafiles')
-    dest_folder = dest_folder_of(item)
-    changed = []
-    for f in mediafiles_for(item):
-        log(4,'Copying media file ' + str(f) + ' to ' + str(dest_folder))
-        changed.append(item_relpath(f))
-        shutil.copy2(f,dest_folder) # keep metadata
-    return(changed)
-
-# Remove all non html and non .svg files (not diretories) from a folder
-# (Keep the html and svg files because that will be remade, and we want to check
-# later whether the new version is the same as the old or not)
-# (After making equations any remaining old equation files are removed)
-# - folder: folder to clean
-def clean_folder(folder: Path):
-    log(2,'Cleaning destination ' + str(folder))
-    for f in folder.glob('*'):
-        if (not f.is_dir()) and (f.suffix != '.html') and (f.suffix != '.svg'):
-            os.remove(f)
-
-# Return the template to use to process post: default if none specified
-# in the YAML header for item
-def post_template(post,default):
-    if post in post_metadata:
-        template = post_metadata[post][2]
-        if template != '':
-            return template
-    return default
-
-# Return the template to use to process page: default if not found
-def page_template(page,default):
-    template = default
-    if str(page) == 'archives.sst':
-        template = 'ssst-archives.html'
-    elif str(page) == 'tags.sst':
-        template = 'ssst-tags.html'
-    elif str(page) == 'categories.sst':
-        template = 'ssst-categories.html'
-    template_path = templates / template        
-    if template_path.exists():
-        return template
-    else:
-        return default
-
-# Make the output (in dest_root) for the item (from src_root). The output
-# replaces what is in the destination always (and dest_root_changes updated
-# accordingly): the reason is that make is called if something in src is newer
-# than the destination, so we have to make sure that the timestamp changes (even
-# if the actual contents do not change) or else this item will be remade forever
-#
-# FIXME: THIS IS A LIE
-# Media files are copied to the destination folder if new, changed, or newer
-# than what is in the destination. Media files removed from the source are
-# removed from the destination.
-# return: list of changed files
-def make_item(item: Path) -> list:
-    log(1,'Processing ' + str(src_path_of(item)))
-    # Clean the destination folder (only for posts that are guaranteed
-    # have separate folders!)
-    dest_folder = dest_folder_of(item)
-    if (is_post(item) and dest_folder.exists()):
-        clean_folder(dest_folder)
-    # create a temorary directory to work in; will be deleted when with closes
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # make comments, stores result in tmpdir/comments.html
-        # FIXME: this also tries to make comments for auxiliary files
-        commentcount = make_comments(item,tmpdir)
-        if is_post(item):
-            log(2,'Processing post')
-            template = post_template(item,'ssst-post.html')
-        else:
-            log(2,'Processing page')
-            template = page_template(item,'ssst-page.html')
-        # make the item using the specified template, merging in comments
-        # in tmpdir
-        changed = make_item_merge_comments(item,commentcount, \
-                            tmpdir + '/comments.html',template)
-    changed = changed + copy_media(item)
-    return(changed)
-
-# Make all items (posts, pages, and all generated .sst files)
-# return a list of changed items
-def make_items() -> list:
-    changed = []
-    # determine all items that need to be updated 
-    for item in worklist():
-        # make them and record all changed files in the destination
-        changed = changed + make_item(item)
-    return(changed)
-
-# ---
-# PRUNING
-# ---
-
-# Prune any auxiliary files that have been generated earlier but were not
-# generated thios time
-# - generated: list of auxiliary files generated this time
-def prune_auxiliary_files (generated_files: list):
-    existing_files = src_files_with_suffix('.sst')
-    for f in existing_files:
-        if f not in generated_files:
-            log(3,"Pruning auxiliary file " + str(f))
-            f.unlink()
-
-# Prune any old items that have been generated earlier but for which the source
-# no longer exist
-# return: list of deleted destination files (relative to the dest_root)
-def prune_html_files():
-    # determine all .html files that exist, and schedule them for deletion
-    # (unless the process below finds a source for them)
-    dest_files = list(dest_files_with_suffix('.html'))
-    # determine all sources for these html files that still exist
-    src_files = list(src_files_with_suffix('.md')) + \
-                list(src_files_with_suffix('.sst')) + \
-                [src_path_of('feed/index.md')]  # dont delete feed!
-    deleted = []
-    for dest in dest_files:
-        md_src = possible_src_of(dest,'.md')
-        sst_src = possible_src_of(dest,'.sst')		
-        if ((md_src not in src_files) and (sst_src not in src_files)):
-            log(3,"Pruning destination file " + str(dest))
-            dest.unlink()
-            # record deleted files as relative paths)
-            deleted.append(dest.relative_to(dest_root))
-    return(deleted)
+        basefolder = src.parent
+    filter_file(src, src, filter_equation)
+    for svg_name in changed_svgs:
+        snapshot[Path(svg_name)] = CHANGED
 
 # ---
 # MAKE SUMMARIES
 # ---
 
-# Regular expression matching img src's and href's that point to a local
-# media object (i.e. paths that start with './' and then do not contain
-# further slashes). A match returns two groups: 1) the src/href prefix and
-# 2) the path without the leading "."
-# (FRAGILE CODE: OTHER ITEMS MAY ALSO START WITH ./ )
-localpath_re = re.compile(r'(src="|href=")\.(/[^/ ]+)"')
-
-# Replacement to use when replacing local paths 
-localpath_replacement = '' 
-
-# filter replacing matched localpath with replacement text
-# (using localpath_replacement)
-# - matchobj: current match
-def substitute_localpath(matchobj) -> str:
-    if matchobj:
-        # get the matched latex expression string
-        prefix = matchobj.group(1)
-        name = matchobj.group(2)        
-        return(prefix + localpath_replacement + name + '"')
-
-
-# Summarise a post and write the summary to a file. Summary is generated using
-# pandoc with the specfied template. The length of
-# the summary is determined by 'summary_length' (-z option). Fixes any links to
-# media in the directory containing the post) by replacing them with their full
-# path from the root of the destination tree (where the home page is where this
-# summary will be included)
-# (Note: make sure that this template does NOT generate a standalone HTML
-# document; it is included in another page).
-# - post: path to post to summarise
-# - container: path to page that will contain this summary (used to fix urls)
-# - date_format: date format string
-# - template: template file name
-# - fname: name of file to store summary in
-def summarize_post( post: Path, container: Path, date_format: str \
-                  , template: str, fname: str):
-    # get string representation of date
-    date = post_metadata[post][0]
-    datestr = date.strftime(date_format)
-    pandoc(post, fname, container, True, template, [], {}, datestr)
-    # fix any local links in the output (that point to local media in the
-    # directory containing the post) by replacing them with their full path
-    # from the root of the destination tree (where the home page is where this
-    # summary will be included)
-    # FIXME: this assumes that summaries are only included in the home page
-    global localpath_replacement
-    localpath_replacement = str(post.parent)
-    with open(fname,'r') as f:
-        # read the file as one string
-        orig_html = f.read()
-    # replace all occurance of the regexp matching local links to media
-    # with the their full path (using the prefix localpath_replacement)
-    processed_html = localpath_re.sub(substitute_localpath, orig_html, count=0)
-    # write the result back to the file
-    with open(fname,'w') as f:
-        f.write(processed_html)
-
-# Make a summary page of some posts
-# - posts: list of posts to summarise
-# - container: path to page that will contain this summary (used to fix urls)
-# - date_format_str: format string to use to format dates in summaries
-# - sub_template: template to use to generate one summary
-# - template: template to generate the overall summaries page
-# - chain: first post after posts summarised
-# - src: src path (of driver .md file to structure summaries page)
-# - dest: destination path to write the summaries page to (as html)
 def summarize_posts( posts: list, container: Path, date_format_str: str \
-                   , sub_template:str, template: str \
-                   , chain: Path, src_name: str, dest_name: str ):
+                   , sub_template, template, dst_path: str, snapshot: dict ):
+    """Make a summary page of some posts
+       - posts: list of items to summarise
+       - container: src path (of driver .md file to structure summaries page)
+       - date_format_str: format string to use to format dates in summaries
+       - sub_template: template to use to generate one summary
+       - template: template to generate the overall summaries page
+       - dst_path: destination path to write the summaries page to (as html)
+       - snapshot: dictionary to keep track of changes ; { path }
+    """
     # creata a temorary directory to work in; will be deleted when with closes
     with tempfile.TemporaryDirectory() as tmpdir:
         # keep track of which temporary files to include later
-        appends = []
         i = 0
-        # creat a summary for each of the posts 
+        summary_fnames = []
+        # creat a summary for each of the posts in a separate tmp file 
         for post in posts:
-            # create a temporary html file name summarizing this entry
-            i = i + 1
-            summary_name = tmpdir + '/rss_feed.' + str(i) + '.html'
-            # create the html summary for this entry
-            summarize_post( post, container \
-                          , date_format_str \
-                          , sub_template, summary_name)
-            # and add this to the files to append when making the summary page
-            appends.append(summary_name)
-        # Create the main summary, including the summarized entries.    
-        # The metadata in src will determine the title and subtitle
-        dest = dest_path_of(dest_name)
-        dest_tmp = dest.with_suffix('.tmp')
+            i += 1
+            summary_fname = f'{ tmpdir }/summary.{ i }.html'
+            metadata = { 'date' : post.date.strftime(date_format_str) }
+            pandoc( post.src_path(), summary_fname, container, True \
+                  , sub_template, [], metadata)
+            # Reuse already generated equations in post.relative_path.parent
+            process_equations(summary_fname, post.relative_path.parent, snapshot)
+            summary_fnames.append(summary_fname)
+        # Create the main summary page now, including the summarized entries.
+        # The metadata in container will determine the title and subtitle
+        src = SRC_ROOT / container
+        dst = DST_ROOT / dst_path
         # create destination folder if it doesnt exist yet
-        os.makedirs(dest.parent, exist_ok=True)
+        os.makedirs(dst.parent, exist_ok=True)
         # get the current date and time in UTC and convert to full datestr
         now = datetime.datetime.today().astimezone(ZoneInfo('UTC'))
-        datestr = now.strftime(rss_date_format_str)
+        datestr = now.strftime(date_format_str)
+        metadata = { 'date' : datestr}
+        prev = posts[len(posts)-1].prev
+        if prev:
+            metadata['prev'] = path_url(prev.relative_path,Path(container))
         # execute pandoc to create the summaries html, merging
         # in the entry summaries generated earlier
-        src = Path(src_name)
-        metadata = { 'first' : str(item_url(chain,src)) }
-        pandoc(src, dest_tmp, src, False, template, appends, metadata, datestr)
-        # replace file containing the home page only if its contents changed
-        changed = replace_when_changed(dest,dest_tmp)    
-        return(changed)
+        dst_tmp = dst.with_suffix('.tmp')
+        pandoc(src, dst_tmp, container, False, template, summary_fnames, metadata )
+        if replace_when_changed(dst,dst_tmp):    
+            snapshot[dst] = CHANGED
+        else:
+            snapshot[dst] = UNCHANGED
 
 # ---
 # MAKE HOME AND RSS FEED
 # ---
 
-# Make the home page, containing a summary of the five most revent posts
-# Home page is generated using pandoc, with <templates>/ssst-homepage.html
-# as template and <src>/index.md as markdown input
-# return: whether home changed
-def make_home() -> bool:
+HOME_PATH = Path('index.html')
+
+def make_home ( posts: list, snapshot: dict ):
+    """Make the home page, containing a summary of the five most revent posts
+       Home page is generated using pandoc, with <templates>/ssst-homepage.html
+       as template and <src>/index.md as markdown input
+       - posts: posts sorted, most recent first
+       - snapshot: dictionary to keep track of changes ; { path }
+    """
     log(0,'Making home page.')
-    # if there are more than five posts, then append link to sixth post
-    # FIXME: make chaining more useful
-    if len(all_posts) > 5:
-        chain = all_posts[5]
-    else:
-        chain = None ;
-    result = summarize_posts( all_posts[0:5] \
-                            , Path('index.html') \
-                            , page_date_format_str \
-                            , 'ssst-summary-entry.html' \
-                            , 'ssst-homepage.html' \
-                            , chain \
-                            , 'index.md' \
-                            , 'index.html' \
-                            )
-    return(result)
+    summarize_posts( posts[0:5], Path('index.md'), PAGE_DATE_FORMAT_STR \
+                   , 'ssst-summary-entry.html', 'ssst-homepage.html' \
+                   , HOME_PATH, snapshot)
 
+RSS_FEED_PATH = Path('feed/index.html')
 
-# Make the RSS feed
-def make_rss_feed():
+def make_rss_feed ( posts: list, snapshot ): 
+    """Make the RSS feed from posts (sorted).
+       - posts: posts sorted, most recent first
+       - snapshot: dictionary to keep track of changes ; { path }
+    """
     log(0,'Making RSS feed.')
     # The 'container' is actually the root index file as links in rss feeds
     # always must be absolute paths with the actual hosting root in them; the
-    # tempalte file shoudld deal with this)
-    result = summarize_posts( all_posts[0:10] \
-                            , Path('index.html') \
-                            , rss_date_format_str \
-                            , 'ssst-rss-entry.html' \
-                            , 'ssst-rss.html' \
-                            , None \
-                            , 'index.md' \
-                            , 'feed/index.html' \
-                            )
-    return(result)
-
-
+    # template file shoudld deal with this)
+    summarize_posts( posts[0:10], Path('index.md'), RSS_DATE_FORMAT_STR \
+                   , 'ssst-rss-entry.html', 'ssst-rss.html' \
+                   , RSS_FEED_PATH, snapshot)
 # ---
-# REPORT CHANGES AND CREATE UPLOAD SCRIPT
+# MAKING ITEMS
 # ---
 
-# report all files in the list in the log
-def report(l: list, m: str):
-    if not l:
-        log(0,'No files ' + m + ".")
+def item_template ( item: Item, default: str ) -> str:
+    """Return the template to use to process item: default if none specified
+       in the YAML header for item.
+    """
+    if item.template != '':
+        return item.template
+    return default
+
+def aux_template ( aux_item: Item, default: str ) -> str:
+    """Return the template to use to process an aux_item: default if not found.
+    """
+    template = default
+    aux_relpath = aux_item.relative_path
+    if str(aux_relpath) == 'archives.sst':
+        template = 'ssst-archives.html'
+    elif str(aux_relpath) == 'tags.sst':
+        template = 'ssst-tags.html'
+    elif str(aux_relpath) == 'categories.sst':
+        template = 'ssst-categories.html'
+    template_path = TEMPLATES_FOLDER / template        
+    if template_path.exists():
+        return template
     else:
-        log(0,'Files ' + m + ":")
-        for p in l:
+        return default
+
+def copy_media ( item: Path, snapshot: dict ):
+    """Copy all media associated with an item, keeping their metadata.
+       And keeping track of changes through snapshot.
+       - item: path to item in the source tree
+    """
+    log(2,'Copying mediafiles')
+    dst_folder = item.dst_path().parent
+    for fpath in item.mediafiles():
+        log(4,f'Copying media file { fpath } to { dst_folder }.')
+        shutil.copy2(fpath, dst_folder) # keep metadata
+        dstpath = DST_ROOT / fpath.relative_to(SRC_ROOT)
+        snapshot[dstpath] = CHANGED
+
+# --- comments
+
+# The code below assumes that comments for an item are stored in the same
+# folder as the item itself, with the following structore
+# ./comment.1.mdc (first comment)
+# ./comment.1.1.mdc (first comment to first comment
+# ./comment.1.2.mdc (second comment to first comment
+# ./comment.2.mdc (second comment)
+# etc., with arbitrary nesting allowed
+
+def fold_comments ( path: str ):
+    """Assume all comment files have been converted to html and are stored in
+       the temporary directory. 
+       Recursively fold all coments at the current level (specified by path in
+       the temporary directory)
+       and return them as a string; try: <path>.1.html (and fold its children)
+       then  <path>.2
+    """
+    log(5,f'Folding { path }.')
+    folded = ''
+    i = 1
+    filename = f'{ path }.{ i }.html'
+    while os.path.exists(filename):
+        folded_children = fold_comments(f'{ path }.{ i }')
+        with open(filename,'r') as f:
+            folded += '<div class="comment">\n'
+            folded += f'{ f.read() }\n{ folded_children }\n</div>\n'
+        i += 1
+        filename = f'{ path }.{ i }.html'
+    return folded
+
+def make_comments( item: Item, tmpdir: Path ) -> int:
+    """ Process the comments associated with the item. 
+        - first convert individual comments to html in tmpdir
+        - then fold them into one html file (keeping the hierarchical order)
+        Stores the result in tmpdir/comments.html for further processing
+        by make (this file is empty if there are no comments)
+
+        - item: item to process comments for; Item
+        - tmpdir: tmp folder to store tmp files and resulting comments.html in
+        - result: number of comments
+    """
+    log(3,'Processing comments')
+    commentfiles = item.commentfiles()
+    # first convert all .mdc files in src_root to .html files in tmpdir
+    for c in commentfiles:
+        # filename to store html converted comment in (in tmpdir)
+        outf = f'{ tmpdir }/{ c.name[:-4] }.html'
+        # blog-post path and comment depth indicator for reply links
+        # strip mdc from the back
+        reply_path = str(c.relative_to(SRC_ROOT))[:-3]
+        metadata = { 'reply' : reply_path }
+        log(4,f'Making comment HTML { outf }.')
+        pandoc(c, outf, item.relative_path, False, 'ssst-comment.html', [], metadata )
+    # now recursively fold in comments created in tmpdir
+    # assumes all commentfiles are of the form comment.*.html where * is secquence of indices
+    comments = fold_comments(tmpdir + '/comment')
+    log(5,comments)
+    # and store the comments in comments.html in the tmpdir
+    with open(tmpdir + '/comments.html','w') as f:
+        f.write(comments)
+    return len(commentfiles)
+
+# --- items
+
+def make_item_merge_comments ( item, commentcount, comments, template, snapshot ):
+    """Make the html item from the md or sst source specified by item, merging
+       in any comments, and using item_template as the template
+       return: list of changed svg files and the destination of the item itself
+       - item: item to make; Item
+       - commentcount: number of comments for item; int
+       - comments: full pathname to html file containing comments to merge; str
+       - template: full pathname of template file to use; str
+       - snapshot: dictionary to keep track of changes ; { path }
+    """
+    src = item.src_path()
+    dst = item.dst_path()
+    # create destination folder if it doesnt exist yet
+    os.makedirs(dst.parent, exist_ok=True)
+    # build the metadata dictionary
+    metadata = {}
+    appends = []
+    # TODO : AUX items can also have next/prev; adjust templates
+    if item.next:
+        metadata['next'] = path_url(item.next.relative_path,item.relative_path)
+    if item.prev:
+        metadata['prev'] = path_url(item.prev.relative_path,item.relative_path) 
+    if item.type != AUX:
+        # path for reply links: relative path of parent of item + 'comment.'
+        metadata['reply'] = str(item.relative_path.parent) + '/comment.'
+        if commentcount > 0:
+            metadata['commentcount'] = str(commentcount)
+            appends = [ comments ]
+        if item.date:
+            datestr = item.date.strftime(PAGE_DATE_FORMAT_STR)
+            metadata['date'] = datestr
+    pandoc(src, dst, item.relative_path, False, template, appends, metadata)
+    # generated images for any complex equations in dst
+    process_equations(dst, None, snapshot)
+    snapshot[dst] = CHANGED
+
+def make_item ( item: Item, snapshot: dict ):
+    """Make the item (in src/aux) and store output in dst.
+       Process any comments and copy any media.
+
+       (The output always replaces what is in the destination: the reason is
+       that make is called if something is newer than the destination,
+       so we have to make sure that the timestamp changes (even if the actual
+       contents do not change) or else this item will be remade forever.
+
+       - item: item to make; Item
+       - snapshot: dictionary to keep track of changes ; { path }
+    """
+    log(1,f'Making { item.relative_path }.')
+    # create a temorary directory to work in; will be deleted when with closes
+    with tempfile.TemporaryDirectory() as tmpdir:
+        if item.type == POST:
+            log(2,'Processing post')
+            template = item_template(item, 'ssst-post.html')
+        elif item.type == PAGE:
+            log(2,'Processing page')
+            template = item_template(item, 'ssst-page.html')
+        else:
+            log(2,'Processing auxiliary item')
+            template = aux_template(item,'ssst-page.html')
+        if item.type != AUX: 
+            # make comments, stores result in tmpdir/comments.html
+            ccount = make_comments(item, tmpdir)
+            log(3,f'{ccount} comments found.')
+        else:
+            ccount = 0
+        cpath = tmpdir + '/comments.html'
+        # make the item using the specified template, merging in comments
+        # in tmpdir
+        make_item_merge_comments(item, ccount, cpath, template, snapshot)
+        copy_media(item, snapshot)
+
+def make_items ( workset: set ) -> (list,list):
+    """Make every item in workset and keep track of changed and obsolete items
+       in dst; delete obsolete items.
+       workset: set of items to make: {item}
+       result: changed and deleted items: [item],[item] 
+    """
+    log(0,'Making items...')
+    # keep track of changed/deleted files in dst, including media files and equation files
+    workset_paths = [ item.dst_path() for item in workset ]
+    workset_paths += [ path for item in workset for path in item.dst_mediafiles() ]
+    workset_paths += [ path for item in workset for path in item.dst_eqfiles() ]
+    snapshot = { fpath : UNTOUCHED for fpath in workset_paths }
+    # make each item in the workset (and keep track of changes through snapshot
+    for item in workset:
+        # ignore home (made separately) and KEEP.md (indicating that a folder
+        # should not be deleted)
+        if item.relative_path != Path('index.md'):
+            make_item(item,snapshot)
+    # make the RSS feed and the home page (using the most recent posts)
+    posts = [item for item in src_items if item.type == POST]
+    posts.sort(key=item_sort_decreasing_date_key)
+    make_home(posts,snapshot)
+    make_rss_feed(posts,snapshot)
+    # clean up and report changes/deletions
+    changed = [ fpath for fpath in snapshot if snapshot[fpath] == CHANGED ]
+    to_delete = [ fpath for fpath in snapshot if snapshot[fpath] == UNTOUCHED ]
+    for fpath in to_delete:        
+        if not fpath.is_dir():
+            log(5,f'Deleting { fpath }.')
+            fpath.unlink() # delete
+    # also delete all empty direcotories in DST and add them to report
+    to_delete += delete_empty_folders(DST_ROOT)
+    return ( changed, to_delete )
+    
+# ---
+# DETERMINING WORK
+# ---
+
+def needs_work (item: Item) -> bool:
+    """Determine whether item needs to be (re)made. True if
+       - destination does not exist
+       - destination exists but is older than source
+       - destination exists but some comment or media file is older
+       - destination exists but does not contain same mediafiles as source
+
+       (also if item = home to ensure all associated files (equations) are
+        added to snapshot in make)
+    
+       item: item to test ; Item
+       return: whether it needs to be made ; bool
+    """
+    log(2,f'Considering { item.relative_path } for work.')
+    dst = item.dst_path()
+    log(4,f'Destination will be { dst }.')
+    # check if home
+    if item.relative_path == Path("index.md"):
+        log(4,'Is home.')
+        return True
+    # check if dst exists
+    if not dst.exists():
+        log(4,'Destination does not exists.')
+        return True
+    # check whether destination is older than source
+    src = item.src_path()
+    if is_older(dst,src):
+        log(4,'Destination older than source.')
+        return True
+    # check whether destination is older than any comment or mediafile in src
+    files = item.commentfiles() + item.mediafiles()
+    for file in files:
+        log(4,f'Additional file found: { file }.')
+        if is_older(dst,file):
+            log(4,'Destination older than comment or media item in source.')
+            return True
+    # check whether destination does not contain same mediafiles as source
+    src_mf = { mf.name for mf in item.mediafiles() }
+    dst_mf = { mf.name for mf in item.dst_mediafiles() }    
+    if src_mf != dst_mf:
+        log(4,'Destination and source do not contain the same media item(s).')
+        return True
+    log(4,'Not a work item.')
+    return False
+
+def workset_for ( items: list ) -> list:
+    """Return the subset of items that need to be made.
+       items: list of all items; [item]
+       result: list of workitems; [item]    
+    """
+    return { item for item in items if (FORCE or needs_work(item)) }
+
+def determine_work ( src_items, aux_items: list ) -> set:
+    """Determine the set of items to make in src_items and aux_items
+       src_items: all items (posts, pages) in src; [item]
+       aux_items: all auxiliary items in aux; [item]
+       result: set of items to make;  {item}
+    """
+    log(0,'Determining items to make...')
+    src_workset = workset_for(src_items) 
+    log(1,f'Found { len(src_workset) } work items in source tree.')
+    # add any previous or next items of items to the workset
+    # (to ensure their next/prev links are updated)
+    prevs = { item.prev for item in src_workset if item.prev != None}
+    nexts = { item.next for item in src_workset if item.next != None}
+    aux_workset = workset_for(aux_items)
+    log(1,f'Found { len(aux_workset) } work items in auxiliary tree.')
+    workset = src_workset | prevs | nexts | aux_workset
+    log(0,f'Found { len(workset) } items to make.')
+    return workset
+
+
+# ---
+# PROCESS CHANGES
+# ---
+
+def report ( paths: list, m: str ):
+    """Report all files in a list in the log, using m as message
+       - paths: list of paths to report; [path]
+       - m: message; str
+    """
+    if not paths:
+        log(0,f'No files { m }.')
+    else:
+        log(0,f'Files { m }:')
+        for p in paths:
             log(1,str(p))
 
-# for each path in l, write the command to f, replacing the
-# modifiers {path} and {file} in command with the
-# parent folder and the filename of the path    
-def write_script_commands ( l: list, command: str, f):
-    for p in l:
+def write_script_commands ( paths: list, command: str, f):
+    """For each path in l, write the command to f, replacing the
+       modifiers {path} and {file} in command with the
+       parent folder and the filename of the path
+       - paths: list of paths to which command must be applied; [path]
+       - command: command (with modifiers); str
+       - f: file descriptor to write output to
+    
+    """
+    for p in paths:
         f.write(command.format(
             path = p.parent,
             file = p.name
         ))
         f.write('\n')
-    
-# Report changes and create uplaod script that uploads all changed
-# files in the destination, and deletes all files no longer needed
+
 def process_changes (changes: list, deletions: list):
+    """Report changes and create uplaod script that uploads all changed
+       files in the destination, and deletes all files no longer needed.
+       - changes: list of files changed (full paths); [path]
+       - deletions: list of files deleted (full paths); [path]    
+    """
     # report changes
     report(changes,'changed in destination')
     report(deletions,'deleted in destination')    
     # create uploadscript (if requested); check for commands
-    if (uploadscript != ''):
-        if (uploadcommand == ''):
+    if (UPLOADSCRIPT != ''):
+        if (UPLOADCOMMAND == ''):
             error('No upload command string specified')
-        if (deletecommand == ''):
+        if (DELETECOMMAND == ''):
             error('No delete command string specified')
         log(0,'Creating upload script')
         # now create the upload script
-        with open(uploadscript,'w') as f:
-            write_script_commands(changes,uploadcommand,f)
-            write_script_commands(deletions,deletecommand,f)
-
+        with open(UPLOADSCRIPT,'w') as f:
+            write_script_commands(changes,UPLOADCOMMAND,f)
+            write_script_commands(deletions,DELETECOMMAND,f)
 
 # ---
 # MAIN
 # ---
 
-# Set up arguments parsing
-parser = argparse.ArgumentParser(description='SSST. A simple static site tool to maintain websites based on markdown and pandoc.')
-parser.add_argument('-s', '--source', default=src_root,
-                    help='Path to the root of the source files tree')
-parser.add_argument('-d', '--destination', default=dest_root,
-                    help='Path to the root of the destination files tree')
-parser.add_argument('-r', '--root', default=hosting_root,
-                    help='Root where the site is hosted. If omitted, the root is found using relative addressing, making the site relocatable')
-parser.add_argument('-t', '--templates', default=templates,
-                    help='Path to directory with templates')
-parser.add_argument('-v', '--verbosity', default=loglevel,
-                    help='Verbosity (-1, the default, is silent)')
-parser.add_argument('-l', '--logfile', default='ssst.log',
-                    help='Name of file to store all log messages in')
-parser.add_argument('-u', '--uploadscript', default='',
-                    help='Name of script file to store upload commands in')
-parser.add_argument('-c', '--uploadcommand', default='',
-                    help='Upload command string (with modifiers)')
-parser.add_argument('-x', '--deletecommand', default='',
-                    help='Delete command string (with modifiers)')
-parser.add_argument('-f', '--force', default = False, action='store_true',
-                    help='(Re)make everything')
-parser.add_argument('-g', '--gladtex', default = False, action='store_true',
-                    help='Use pandoc --gladtex to process LaTeX equations.')
-parser.add_argument('-k', '--keepsimple', default = False, action='store_true',
-                    help='Do not process simple LaTex equations')
-parser.add_argument('-p', '--pedantic', default = False, action='store_true',
-                    help='Abort after warning')
-parser.add_argument('-z', '--summarylength', default=summary_length,
-                    help='Number of lines in post (including YAML header) to include in a summary')
-parser.add_argument('-o', '--overwrite', default = False, action='store_true',
-                    help='Overwrite files even when contents unchanged')
-args = parser.parse_args()
-
-# Apply arguments and check validity
-src_root = Path(args.source)
-if not src_root.exists():
-    error('Source tree %s does not exist.' % src_root)
-dest_root = Path(args.destination)
-if not dest_root.exists():
-    error('Path to destination tree %s does not exist.' % dest_root)
-hosting_root = args.root
-templates = Path(args.templates)
-if not templates.exists():
-    error('Templates directory %s does not exist.' % templates)
-loglevel = int(args.verbosity)
-force = args.force
-overwrite = args.overwrite
-use_gladtex = args.gladtex
-pedantic = args.pedantic
-keep_simple_eqs = args.keepsimple
-logname = args.logfile
-uploadscript = args.uploadscript
-uploadcommand = args.uploadcommand
-deletecommand = args.deletecommand
-summary_length = int(args.summarylength)
-
-# open logfile
-if logname != '':
-    logfile = open(logname,'w')
-
-# first collect all metadate (like tags and categories, but also title and date
-# for all blog entries (posts and pages) in the source tree. This initializes
-# - posts_with_cat (dictionary of all categories, listing all posts contained)
-# - posts_with_tag (dictionary of all tags, listing all posts tagged as scuh)
-# - post_metadata (dictionary of all posts, containing metadata
-#   as tuples (date,title,template)
-# - all_posts (essentially a copy of post_metadata): list of all relative
-#   pathnames for posts, sorted by date (most recent first)
-process_posts()
-
-# Generate all auxiliary files, and return a list of all generated files
-# - category files in ./category/<categorystring>/index.sst
-# - tag files in ./tag/<tagstring>/index.sst
-# - archive files in ./yyyy/mm/index.sst and
-# - the overviews ./categories.sst and ./tags.sst and  ./archives.sst
-#
-# (make sure not to touch files whose contents do not change, so they do not
-# show up as a worklist() item and will be skipped by make())
-generated = generate_auxiliary_files()
-
-# Prune any old auxiliary files that have been generated earlier but are no
-# longer needed (eg because tag or vatergory no longert exists)
-prune_auxiliary_files(generated)
-
-# make all html files whose sources have changed (this includes the .sst files
-# just generated), and store the list of changed items
-changes = make_items()
-
-# Prune any old items that have been generated earlier but for which a source
-# no longer exist, and store the list of deleted items
-deletions = prune_html_files()
-
-# create the home page containing a summary of the most recent posts
-# (mark changed if changed)
-if make_home():
-    changes.append(Path('index.html'))
-    
-# create the rss feed; the rss feed always changes (because it containt the
-# current date)
-make_rss_feed()
-changes.append(Path('feed/index.html'))
-
-# report all changed files and creat upload script
-process_changes(changes,deletions)
-
-        
+# parse the command line, and set all options; aborts if any errors
+parse_commandline() 
+# open the logfile if neccesary
+if LOGNAME != '':
+    logfile = open(LOGNAME,'w')
+# scan all pages and posts in src and load their metadata
+src_items = scan_src_items()
+# use this metadata to update all auxiliary files (archives, tags, categories)
+# in aux (unchanged files remain untouched; obsolete files are deleted)
+aux_items = generate_aux_items(src_items)
+# convert all pages, posts and auxiliary items to their corresponding html
+# files in dst; return a list of changed and a list of deleted html files
+workset = determine_work(src_items,aux_items)
+(changed,deleted) = make_items(workset)
+# delete all obsolete files
+deleted += delete_obsolete_dst_files(src_items,aux_items)
+# report all changed files and create upload script 
+process_changes(changed,deleted)
 # close the logfile if necessary
 if logfile != None:
     logfile.close()
+
+    
+    
+
 
 
