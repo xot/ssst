@@ -362,10 +362,8 @@ def is_obsolete_dst_file (f: Path, prefixes: set ) -> bool:
        - f  does not equal the RSS feed path
     """
     if not f.is_dir():
-        log(1,f'Testing file { f }')
         f = f.parent
     else:
-        log(1,f'Testing folder { f }')
     result  = (f not in prefixes) and (not (f / "KEEP").exists()) and \
                  (f !=  DST_ROOT / RSS_FEED_PATH.parent)
     log(1,f'Result: { result } ')
