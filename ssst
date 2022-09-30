@@ -442,6 +442,8 @@ def filter_file ( inpath, outpath : Path, filter):
 # ERRORS / LOGGING
 # ---
 
+logfile = None
+
 # Outpur the error message, and log it when required. Then exit
 # - msg: the error message
 def error( msg: str ):
