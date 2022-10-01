@@ -199,7 +199,7 @@ def pandoc ( src, dst, container: Path, summarize: bool \
        - dst : full path of destination file
        - container : relative path of final html file this file may be included
            in (used to determine root and path metadata)
-           relative path of src if standalone
+           relative path of src if summarise = false
        - summarize: if true, include only summary_length lines of the input
        - template: name of template to use
        - appends: other html files pandoc should append (-A)
@@ -229,12 +229,14 @@ def pandoc ( src, dst, container: Path, summarize: bool \
     # append metadata string
     for m in metadata:
         options += f' --metadata { m }="{ metadata[m] }"'
-    # first replace all occurances of ./ with the current base directory
-    # (replacement should not contain &)
     base = str(Path(path).parent)
-    command = f'cat { src } | sed "s&\\./&{ base }/&g"'
-    # when summarizing, use head to get the first SUMMARY_LENGTH lines
+    # build command
+    command = f'cat { src }' 
     if summarize:
+        # first replace all occurances of ./ with the current base directory
+        # (replacement should not contain &)
+        command += f' | sed "s&\\./&{ base }/&g"'
+        # when summarizing, use head to get the first SUMMARY_LENGTH lines
         command += f' | head -n { SUMMARY_LENGTH }'
     command += f' | pandoc -s -f markdown -t html { options } -o { dst }'        
     run_shell_command(command)
@@ -1475,12 +1477,15 @@ def write_script_commands ( paths: list, command: str, f):
         ))
         f.write('\n')
 
-def process_changes (changes: list, deletions: list):
+def process_changes (dst_changes: list, dst_deletions: list):
     """Report changes and create uplaod script that uploads all changed
        files in the destination, and deletes all files no longer needed.
-       - changes: list of files changed (full paths); [path]
-       - deletions: list of files deleted (full paths); [path]    
+       - dst_changes: list of files changed (full paths); [path]
+       - dst_deletions: list of files deleted (full paths); [path]    
     """
+    # first convert full paths (in dst) to relative paths
+    changes = [path.relative_to(DST_ROOT) for path in dst_changes]
+    deletions = [path.relative_to(DST_ROOT) for path in dst_deletions]
     # report changes
     report(changes,'changed in destination')
     report(deletions,'deleted in destination')    
