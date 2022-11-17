@@ -140,14 +140,15 @@ def process_post (item: Path, keyword: str, replacement: str):
         if keyword in keywords:
             foundmsg = f"Keyword '{keyword}' found in {item}."
             if not dry:
+                new_keywords = [ k for k in keywords if not (k == keyword)]
                 if len(replacement) > 0: # replace or remove keyword 
                     log(1,f"{foundmsg} Replacing with '{replacement}'.")
-                    yaml_header['keywords'] = \
-                        [ replacement if k == keyword else k for k in keywords]
+                    replacement_list = replacement.split(',')
+                    for e in replacement_list:
+                        new_keywords.append(e)                        
                 else:
                     log(1,f"{foundmsg} Removing it.")
-                    yaml_header['keywords'] = \
-                        [ k for k in keywords if not (k == keyword)]
+                yaml_header['keywords'] = new_keywords
                 replace_yaml_header(item,yaml_header)
             else:
                 log(1,foundmsg)
@@ -195,7 +196,7 @@ parser.add_argument('-b', '--backup', default = False, action='store_true',
 parser.add_argument('keyword',
                     help='Keyword')
 parser.add_argument('replacement', nargs = '?', default = '',
-                    help='Replacement keyword. If empty, keyword is removed')
+                    help='Replacement keywords, separated by comma. If empty, keyword is removed')
 args = parser.parse_args()
 
 # Apply arguments and check validity

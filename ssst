@@ -367,7 +367,7 @@ def is_obsolete_dst_file (f: Path, prefixes: set ) -> bool:
         f = f.parent
     result  = (f not in prefixes) and (not (f / "KEEP").exists()) and \
                  (f !=  DST_ROOT / RSS_FEED_PATH.parent)
-    log(1,f'Result: { result } ')
+    log(3,f'Testing if {f} is obsolete. Result: { result } ')
     return result
 
 def delete_obsolete_dst_files ( src_items, aux_items : list ) -> list:
@@ -377,20 +377,20 @@ def delete_obsolete_dst_files ( src_items, aux_items : list ) -> list:
        - aux_items: list of items in aux; [Item]
        - result: list of deleted files; [path]
     """
-    log(0,f'Deleting all obsolete files from {DST_ROOT}')
+    log(0,f'Determining all obsolete files from {DST_ROOT}')
+    # add all prefixes of all src_items and aux_items
+    prefixes = set()
+    for item in src_items + aux_items:
+        prefix = item.dst_path().parent
+        while prefix != Path('.'):
+            prefixes.add(prefix)
+            prefix = prefix.parent
+    # now find all obsolete files in dst usng this  list of prefixes
+    dst_files = all_files_with_suffix(DST_ROOT,'')
+    to_delete = [ f for f in dst_files if is_obsolete_dst_file(f,prefixes) ]
     # sanity check (to prevent deleting say the user home directory)
     canary =  DST_ROOT / 'ssst.canary'
     if canary.exists():
-        # add all prefixes of all src_items and aux_items
-        prefixes = set()
-        for item in src_items + aux_items:
-            prefix = item.dst_path().parent
-            while prefix != Path('.'):
-                prefixes.add(prefix)
-                prefix = prefix.parent
-        # now find all obsolete files in dst usng this  list of prefixes
-        dst_files = all_files_with_suffix(DST_ROOT,'')
-        to_delete = [ f for f in dst_files if is_obsolete_dst_file(f,prefixes) ]
         log(1,f'Deleting { len(to_delete) } obsolete files')
         # sort according to decreasing length
         # (to ensure folders that only contain empty folders are also deleted)
@@ -404,6 +404,7 @@ def delete_obsolete_dst_files ( src_items, aux_items : list ) -> list:
         return to_delete
     else:
         log(1,f'Not deleting anything because { canary } does not exist.')
+        log(1,f'(Would have deleted { len(to_delete) } obsolete files)')
         log(1,f'Create it manually in { DST_ROOT }.')
         return []
     
