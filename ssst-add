@@ -13,7 +13,10 @@ import argparse, sys, os, yaml, datetime, shutil, string, html
 from pathlib import Path
 
 # Path to the root of the source files tree
-src_root = Path('./src')
+SRC_ROOT = Path('./src')
+
+# Path to the root of the auxiliary files tree
+AUX_ROOT = Path('./aux')
 
 # ---
 # USER INPUT
@@ -173,7 +176,7 @@ def check_known_tags(src_root,keywords):
 # add post at the appropriate location in the src_root (determined by the date
 # and the title, using today if no date found in the post).
 # Add the date to the post when neccessary
-def add(src_root,post):
+def add(src_root,aux_root,post):
     yaml_header = get_yaml_dict(post)
     if 'title' in yaml_header:
         title = yaml_header['title']
@@ -193,12 +196,12 @@ def add(src_root,post):
     if not 'categories' in yaml_header:
         interactive_warning('Post is missing a category')
     else:
-        check_known_categories(src_root,yaml_header['categories'])
+        check_known_categories(aux_root,yaml_header['categories'])
     # warn for missing or unknown keywords/tags
     if not 'keywords' in yaml_header:
         interactive_warning('Post is missing a keyword/tag')
     else:
-        check_known_tags(src_root,yaml_header['keywords'])
+        check_known_tags(aux_root,yaml_header['keywords'])
     # determine the full pathname for the post
     dest = str(src_root) + date.strftime('/%Y/%m/%d/') + \
         normalise_title(title) + '/index.md'
@@ -221,8 +224,10 @@ def add(src_root,post):
 # Set up arguments parsing
 parser = argparse.ArgumentParser(description='SSST-add. Add a post to a SSST managed blog.')
 parser.add_argument('post', help='Filename of post to add')
-parser.add_argument('-s', '--source', default=src_root,
+parser.add_argument('-s', '--source', default=SRC_ROOT,
                     help='Path to the root of the source files tree')
+parser.add_argument('-a', '--aux', default=AUX_ROOT,
+                    help='Path to the root of the auxiliary files tree')
 parser.add_argument('-v', '--verbosity', default=loglevel,
                     help='Verbosity (-1, the default, is silent)')
 parser.add_argument('-l', '--logfile', default='ssst-add.log',
@@ -232,9 +237,12 @@ parser.add_argument('-p', '--pedantic', default = False, action='store_true',
 args = parser.parse_args()
 
 # Apply arguments
-src_root = Path(args.source)
-if not src_root.exists():
-    error('Source tree %s does not exist.' % src_root)
+SRC_ROOT = Path(args.source)
+AUX_ROOT = Path(args.aux)
+if not SRC_ROOT.exists():
+    error('Source tree %s does not exist.' % SRC_ROOT)
+if not AUX_ROOT.exists():
+    error('Aux tree %s does not exist.' % AUX_ROOT)
 post = args.post
 if not os.path.exists(post):
     error('Post %s does not exist.' % post)
@@ -247,7 +255,7 @@ if logname != '':
     logfile = open(logname,'w')
 
 # do it
-add(src_root,post)
+add(SRC_ROOT,AUX_ROOT,post)
 
 # close the logfile if necessary
 if logfile != None:
