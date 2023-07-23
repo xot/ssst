@@ -144,7 +144,9 @@ def normalise_title(title):
 
 # Check a list of known categories (determined by inspecting the src-tree)
 def check_known_categories(src_root,categories):
-    # careful: categories may be a single string
+    # careful: categories may be a single string or None
+    if categories == None:
+        categories = [ 'uncategorized' ]
     if type(categories) is str:
         categories = [ categories ]
     cats = []
