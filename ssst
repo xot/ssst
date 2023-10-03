@@ -564,15 +564,24 @@ def ensure_list ( yaml_dict: dict, key: str ) -> list:
         return []
 
 def parse_date (s) -> datetime.date:
-    """Parse a date if it is a string, return unchanced otherwise.
+    """Parse a date if it is a string, return as a date if datetime,
+       return unchanced otherwise.
        (Only parses wordpress generated dates like
        'Sun, 19 Apr 2020 08:42:00 +0000'
-       that the YAML parser fails to parse)
+       or ISO 8601 dates like
+       '2023-10-03T20:08:52'
+       that the YAML parser fails to parse because they are strings
        - s: string to parse if it isn't a date
     """
     if type(s) is str:
-        time = datetime.datetime.strptime(s,'%a, %d %b %Y %H:%M:%S %z')
+        try:
+            time = datetime.datetime.strptime(s,'%a, %d %b %Y %H:%M:%S %z')
+        except:
+            # also support ISO8601 (Joeldebruijn)
+            time = datetime.datetime.strptime(s,'%Y-%m-%dT%H:%M:%S')
         return time.date()
+    elif type(s) is datetime.datetime:
+        return s.date()
     else:
         return s
     
