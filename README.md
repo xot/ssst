@@ -153,7 +153,7 @@ The post content follows the YAML header. Below is an example
 title: 'Maintaining a static self-hosted site'
 date: 'Sun, 19 Apr 2020 08:42:00 +0000'
 categories: [documentation]
-tags: [static, self-hosted, markdown]
+keywords: [static, self-hosted, markdown]
 ---
 post content
 ```
