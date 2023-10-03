@@ -571,7 +571,7 @@ def parse_date (s) -> datetime.date:
        - s: string to parse if it isn't a date
     """
     if type(s) is str:
-        time = datetime.datetime.strptime(s,'%a, %d %b %Y %H:%M:%S %z')
+        time = datetime.datetime.strptime(s,'%Y-%m-%dT%H:%M:%S')
         return time.date()
     else:
         return s
