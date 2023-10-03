@@ -28,10 +28,10 @@ SSST keeps track of files changed during the process, and can create a batch fil
 `ssst` processes all files in a source tree rooted at `SOURCE`, and writes its output into a destination tree rooted at `DESTINATION`. It creates auxiliary files (keeping track of tags, categories and archives) in `AUX`.
 
 ```
-usage: ssstv2 [-h] [-s SOURCE] [-a AUX] [-d DESTINATION] [-r ROOT]
-              [-t TEMPLATES] [-v VERBOSITY] [-l LOGFILE] [-u UPLOADSCRIPT]
-              [-c UPLOADCOMMAND] [-x DELETECOMMAND] [-f] [-g] [-k] [-p]
-              [-z SUMMARYLENGTH] [-o]
+usage: ssst [-h] [-s SOURCE] [-a AUX] [-d DESTINATION] [-r ROOT]
+            [-t TEMPLATES] [-v VERBOSITY] [-l LOGFILE] [-u UPLOADSCRIPT]
+            [-c UPLOADCOMMAND] [-x DELETECOMMAND] [-f] [-g] [-k] [-p]
+            [-z SUMMARYLENGTH] [-o]
 
 SSST. A simple static site tool to maintain websites based on markdown and
 pandoc.
