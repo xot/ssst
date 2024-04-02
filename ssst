@@ -403,7 +403,7 @@ def delete_obsolete_dst_files ( src_items, aux_items : list ) -> list:
                 fpath.unlink() # delete
         return to_delete
     else:
-        log(1,f'Not deleting anything because { canary } does not exist.')
+        log(0,f'Not deleting anything because { canary } does not exist.')
         log(1,f'(Would have deleted { len(to_delete) } obsolete files)')
         log(1,f'Create it manually in { DST_ROOT }.')
         return []
