@@ -1534,6 +1534,7 @@ deleted += delete_obsolete_dst_files(src_items,aux_items)
 # report all changed files and create upload script 
 process_changes(changed,deleted)
 # close the logfile if necessary
+log(0,'Done.')
 if logfile != None:
     logfile.close()
 
