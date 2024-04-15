@@ -380,9 +380,10 @@ def delete_obsolete_dst_files ( src_items, aux_items : list ) -> list:
     log(0,f'Determining all obsolete files from {DST_ROOT}')
     # add all prefixes of all src_items and aux_items
     prefixes = set()
+    prefixes.add(DST_ROOT)
     for item in src_items + aux_items:
         prefix = item.dst_path().parent
-        while prefix != Path('.'):
+        while prefix != DST_ROOT:    
             prefixes.add(prefix)
             prefix = prefix.parent
     # now find all obsolete files in dst usng this  list of prefixes
