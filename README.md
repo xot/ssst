@@ -82,6 +82,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -s SOURCE, --source SOURCE
                         Path to the root of the source files tree
+  -a AUX, --aux AUX     Path to the root of the auxiliary files tree
   -v VERBOSITY, --verbosity VERBOSITY
                         Verbosity (-1, the default, is silent)
   -p, --pedantic        Abort after warning
