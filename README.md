@@ -172,7 +172,7 @@ The source tree (rooted at `SOURCE`) should be structured as follows:
   `./yyyy/mm/dd/title/comment.x.y.mdc`,
   where `x.y.` is the comment numbering scheme. Here .1 is first main comment, .2 second main comment, ...  and so `comment.x.y.mdc` is the y-th response to the x-th main comment.
 - Media stored with post/page in the same directory are copied to the output tree (i.e files with extension `.jpg`, `.gif`, `.pdf` and `.png`)
-  keeping their metadata (i.e modification times).
+  keeping their metadata (i.e modification times). In markdown these mediafiles should be referenced with a trailing dot-slash like "./name-of-image.png". Otherwise they will show up in posts themselves but not elsewhere, for example the home page which needs to know where in the source tree the image is located.
 
 
 # Generated input
