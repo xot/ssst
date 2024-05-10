@@ -147,7 +147,7 @@ The string used as date must either be specified as ISO 8601 dates (like yyyy-mm
 
 Any post categories can be specified using the `categories:` key, and any post tags can be specified using the `keywords:` key. The latter two keys expect lists as values, i.e. enumerations separated by comma's enclosed by square brackets (or one entry on a single line, starting with a hyphen). 
 
-The post content follows the YAML header. Below is an example
+The post content follows the YAML header. Below is are 2 examples with different date/time and list notations
 
 ```
 ---
@@ -157,6 +157,19 @@ categories: [documentation]
 keywords: [static, self-hosted, markdown]
 ---
 post content
+```
+
+```
+---
+title: 'Maintaining a static self-hosted site'
+date: '2022-11-15T11:49:53'
+categories:
+    - Documentation
+keywords:
+    - static
+    - self-hosted
+    - markdown
+---
 ```
 
 # Structure of the source tree
