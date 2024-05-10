@@ -145,7 +145,7 @@ SSST processes markdown files containing posts or pages. SSST expects these file
 
 The string used as date must either be specified as ISO 8601 dates (like yyyy-mm-dd) or can be specified like this example 'Sun, 19 Apr 2020 08:42:00 +0000' (which is the format WordPress uses, also in its data dumps).
 
-Any post categories can be specified using the `categories:` key, and any post tags can be specified using the `keywords:` key. The latter two keys expect lists as values, i.e. enumerations separated by comma's enclosed by square brackets (or one entry on a single line, starting with a hyphen). 
+Any post categories can be specified using the `categories:` key, and any post tags can be specified using the `keywords:` key. The latter two keys expect lists as values, i.e. enumerations separated by comma's enclosed by square brackets (or one entry on a single line, starting with a hyphen) or a list with every value on a single line.
 
 The post content follows the YAML header. Below is an example
 
