@@ -142,7 +142,7 @@ optional arguments:
 
 SSST processes markdown files containing posts or pages. SSST expects these files to start with a YAML block containing at least the post/page title (using the `title:` key). Posts have categories and tags. Pages do not. Posts are also expected to have a date (using the `date:` key). Pages do not (bit can). Values for these keys are strings (enclosed by single quotes).
 
-The string used as date must either be specified as ISO 8601 dates (like yyyy-mm-dd) or can be specified like this example 'Sun, 19 Apr 2020 08:42:00 +0000' (which is the format WordPress uses, also in its data dumps).
+The string used as date must either be specified as ISO 8601 dates (like yyyy-mm-dd or yyyy-mm-ddTHH:mm:ss) or can be specified like this example 'Sun, 19 Apr 2020 08:42:00 +0000' (which is the format WordPress uses, also in its data dumps).
 
 Any post categories can be specified using the `categories:` key, and any post tags can be specified using the `keywords:` key. The latter two keys expect lists as values, i.e. enumerations separated by comma's enclosed by square brackets (or one entry on a single line, starting with a hyphen). 
 
