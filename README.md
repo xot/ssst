@@ -82,6 +82,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -s SOURCE, --source SOURCE
                         Path to the root of the source files tree
+  -a AUX, --aux AUX     Path to the root of the auxiliary files tree
   -v VERBOSITY, --verbosity VERBOSITY
                         Verbosity (-1, the default, is silent)
   -p, --pedantic        Abort after warning
@@ -140,7 +141,7 @@ optional arguments:
 
 # Input
 
-SSST processes markdown files containing posts or pages. SSST expects these files to start with a YAML block containing at least the post/page title (using the `title:` key). Posts have categories and tags. Pages do not. Posts are also expected to have a date (using the `date:` key). Pages do not (bit can). Values for these keys are strings (enclosed by single quotes).
+SSST processes markdown files containing posts or pages. SSST expects these files to start with a YAML block containing at least the post/page title (using the `title:` key). Posts have categories and tags. Pages do not. Posts are also expected to have a date (using the `date:` key). Pages do not (but can). Values for these keys are strings (enclosed by single quotes).
 
 The string used as date must either be specified as ISO 8601 dates (like yyyy-mm-dd or yyyy-mm-ddTHH:mm:ss) or can be specified like this example 'Sun, 19 Apr 2020 08:42:00 +0000' (which is the format WordPress uses, also in its data dumps).
 
@@ -171,7 +172,7 @@ The source tree (rooted at `SOURCE`) should be structured as follows:
   `./yyyy/mm/dd/title/comment.x.y.mdc`,
   where `x.y.` is the comment numbering scheme. Here .1 is first main comment, .2 second main comment, ...  and so `comment.x.y.mdc` is the y-th response to the x-th main comment.
 - Media stored with post/page in the same directory are copied to the output tree (i.e files with extension `.jpg`, `.gif`, `.pdf` and `.png`)
-  keeping their metadata (i.e modification times).
+  keeping their metadata (i.e modification times). In markdown these mediafiles should be referenced with a trailing dot-slash like "./name-of-image.png". Otherwise they will show up in posts themselves but not elsewhere, for example the home page which needs to know where in the source tree the image is located.
 
 
 # Generated input
